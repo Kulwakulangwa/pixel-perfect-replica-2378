@@ -44,12 +44,14 @@ export function useStaff() {
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
+    if (sessionLoading) return;
     if (!session?.user) {
       setStaff(null);
       setLoading(false);
       return;
     }
     setLoading(true);
+    setError(null);
     const { data, error } = await supabase
       .from("staff")
       .select("id, shop_id, full_name, email, phone, role, can_discount, can_manage_till, is_active")
@@ -58,7 +60,7 @@ export function useStaff() {
     if (error) setError(error.message);
     setStaff((data as StaffProfile) ?? null);
     setLoading(false);
-  }, [session?.user]);
+  }, [session?.user?.id, sessionLoading]);
 
   useEffect(() => { void refetch(); }, [refetch]);
 
