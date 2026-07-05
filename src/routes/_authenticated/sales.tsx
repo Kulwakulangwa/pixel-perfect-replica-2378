@@ -39,7 +39,7 @@ function SalesPage() {
         .select("id, receipt_number, total, sale_type, payment_method, lipa_namba_provider, status, created_at, cashier_id, customer_id, customer:customers(name)")
         .order("created_at", { ascending: false })
         .limit(200);
-      if (type !== "all") query = query.eq("sale_type", type);
+      if (type !== "all") query = query.eq("sale_type", type as "cash" | "credit");
       const { data, error } = await query;
       if (error) throw error;
       return data as unknown as Sale[];
