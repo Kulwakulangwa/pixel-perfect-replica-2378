@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { useState, useRef } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -30,7 +29,6 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-// --- Types ---
 type ShopSettings = {
   id: string;
   name: string;
@@ -43,10 +41,9 @@ type Staff = {
   user_id: string;
   full_name: string | null;
   role: string;
-  discount_permission: boolean;
+  can_discount: boolean;
 };
 
-// --- Fetch functions ---
 const fetchShopSettings = async (): Promise<ShopSettings> => {
   const { data, error } = await supabase
     .from("shops")
@@ -59,13 +56,12 @@ const fetchShopSettings = async (): Promise<ShopSettings> => {
 const fetchCashiers = async (): Promise<Staff[]> => {
   const { data, error } = await supabase
     .from("staff")
-    .select("id, user_id, full_name, role, discount_permission")
+    .select("id, user_id, full_name, role, can_discount")
     .eq("role", "cashier");
   if (error) throw error;
   return data;
 };
 
-// --- Mutations ---
 const updateShopSettings = async (settings: Partial<ShopSettings>) => {
   const { id, ...update } = settings;
   const { error } = await supabase
@@ -75,10 +71,10 @@ const updateShopSettings = async (settings: Partial<ShopSettings>) => {
   if (error) throw error;
 };
 
-const updateCashierPermission = async (staffId: string, discount_permission: boolean) => {
+const updateCashierPermission = async (staffId: string, can_discount: boolean) => {
   const { error } = await supabase
     .from("staff")
-    .update({ discount_permission })
+    .update({ can_discount })
     .eq("id", staffId);
   if (error) throw error;
 };
@@ -91,24 +87,20 @@ const deleteCashier = async (staffId: string) => {
   if (error) throw error;
 };
 
-// --- Main Component ---
 function SettingsPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Local state for shop settings form
   const [shopName, setShopName] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("");
   const [shopId, setShopId] = useState<string>("");
 
-  // Cashier management
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newCashierEmail, setNewCashierEmail] = useState("");
   const [newCashierPassword, setNewCashierPassword] = useState("");
   const [newCashierName, setNewCashierName] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  // Queries
   const { data: shop, isLoading: shopLoading, refetch: refetchShop } = useQuery({
     queryKey: ["shopSettings"],
     queryFn: fetchShopSettings,
@@ -126,7 +118,6 @@ function SettingsPage() {
     queryFn: fetchCashiers,
   });
 
-  // Mutations
   const updateShopMutation = useMutation({
     mutationFn: updateShopSettings,
     onSuccess: () => {
@@ -148,7 +139,6 @@ function SettingsPage() {
     },
   });
 
-  // Handlers
   const handleShopUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!shopId) return;
@@ -168,15 +158,14 @@ function SettingsPage() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${shopId}/logo.${fileExt}`;
       const { error: uploadError } = await supabase.storage
-        .from('shop-assets')
+        .from('shop-media')
         .upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('shop-assets')
+        .from('shop-media')
         .getPublicUrl(fileName);
       
-      // Update shop with logo URL
       await updateShopSettings({
         id: shopId,
         logo_url: publicUrl,
@@ -196,7 +185,6 @@ function SettingsPage() {
     if (!newCashierEmail || !newCashierPassword || !newCashierName) return;
 
     try {
-      // Call Edge Function
       const { data, error } = await supabase.functions.invoke('create-cashier', {
         body: {
           email: newCashierEmail,
@@ -205,7 +193,6 @@ function SettingsPage() {
         },
       });
       if (error) throw error;
-      // The trigger will create staff record, we just need to refresh
       queryClient.invalidateQueries({ queryKey: ["cashiers"] });
       setIsAddDialogOpen(false);
       setNewCashierEmail("");
@@ -218,7 +205,7 @@ function SettingsPage() {
   };
 
   const togglePermission = (staffId: string, current: boolean) => {
-    updatePermissionMutation.mutate({ staffId, discount_permission: !current });
+    updatePermissionMutation.mutate({ staffId, can_discount: !current });
   };
 
   const handleDeleteCashier = (staffId: string) => {
@@ -232,7 +219,6 @@ function SettingsPage() {
       <PageHeader title="Mipangilio" description="Dhibiti mazingira ya duka lako" />
 
       <div className="space-y-8">
-        {/* Shop Settings */}
         <div className="border rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-4">Maelezo ya Duka</h3>
           <form onSubmit={handleShopUpdate} className="space-y-4">
@@ -248,8 +234,9 @@ function SettingsPage() {
             </div>
             <div>
               <Label htmlFor="receiptFooter">Kisaini cha Risiti (footer)</Label>
-              <Textarea
+              <textarea
                 id="receiptFooter"
+                className="w-full min-h-[80px] p-2 border rounded-md"
                 value={receiptFooter}
                 onChange={(e) => setReceiptFooter(e.target.value)}
                 placeholder="Asante kwa kununua! ..."
@@ -262,7 +249,6 @@ function SettingsPage() {
           </form>
         </div>
 
-        {/* Logo Upload */}
         <div className="border rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-4">Picha ya Duka (Logo)</h3>
           <div className="flex items-center gap-4">
@@ -299,7 +285,6 @@ function SettingsPage() {
           </div>
         </div>
 
-        {/* Cashier Management */}
         <div className="border rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Wasimamizi (Cashiers)</h3>
@@ -377,8 +362,8 @@ function SettingsPage() {
                     <TableCell>{cashier.user_id}</TableCell>
                     <TableCell>
                       <Switch
-                        checked={cashier.discount_permission}
-                        onCheckedChange={() => togglePermission(cashier.id, cashier.discount_permission)}
+                        checked={cashier.can_discount}
+                        onCheckedChange={() => togglePermission(cashier.id, cashier.can_discount)}
                         disabled={updatePermissionMutation.isPending}
                       />
                     </TableCell>
