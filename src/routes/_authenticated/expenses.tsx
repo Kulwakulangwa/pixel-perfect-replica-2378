@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import {
   Table,
@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AppShell, PageHeader } from "@/components/app-shell";
-import { Loader2, Filter, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/expenses")({
@@ -38,7 +38,6 @@ type Expense = {
   created_at: string;
 };
 
-// Fetch expenses with optional filters
 const fetchExpenses = async (category?: string, fromDate?: string, toDate?: string) => {
   let query = supabase
     .from("expenses")
@@ -60,7 +59,6 @@ const fetchExpenses = async (category?: string, fromDate?: string, toDate?: stri
   return data as Expense[];
 };
 
-// Add expense mutation
 const addExpense = async (expense: Omit<Expense, "id" | "created_at">) => {
   const { error } = await supabase.from("expenses").insert([expense]);
   if (error) throw error;
@@ -71,35 +69,31 @@ const expenseCategories = [
   { value: "electricity", label: "Electricity" },
   { value: "transport", label: "Transport" },
   { value: "salaries", label: "Salaries" },
+  { value: "stock_purchase", label: "Stock Purchase" },
   { value: "other", label: "Other" },
 ];
 
 function ExpensesPage() {
   const queryClient = useQueryClient();
 
-  // Filter state
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
-  // Form state
   const [category, setCategory] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [expenseDate, setExpenseDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [description, setDescription] = useState<string>("");
 
-  // Query
   const { data: expenses = [], isLoading, error } = useQuery({
     queryKey: ["expenses", categoryFilter, fromDate, toDate],
     queryFn: () => fetchExpenses(categoryFilter, fromDate, toDate),
   });
 
-  // Mutation
   const mutation = useMutation({
     mutationFn: addExpense,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
-      // Reset form
       setCategory("");
       setAmount("");
       setExpenseDate(new Date().toISOString().split("T")[0]);
@@ -133,7 +127,6 @@ function ExpensesPage() {
     <AppShell>
       <PageHeader title="Gharama" description="Rekodi na udhibiti gharama zako" />
 
-      {/* Add Expense Form */}
       <div className="border rounded-lg p-4 mb-6">
         <h3 className="text-lg font-semibold mb-3">Ongeza Gharama</h3>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -192,7 +185,6 @@ function ExpensesPage() {
         </form>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-end gap-4 mb-4">
         <div className="flex-1 min-w-[150px]">
           <Label htmlFor="categoryFilter">Chuja Kwa Aina</Label>
@@ -233,7 +225,6 @@ function ExpensesPage() {
         </Button>
       </div>
 
-      {/* Expenses List */}
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
