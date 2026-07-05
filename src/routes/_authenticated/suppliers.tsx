@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import {
   Table,
@@ -35,7 +35,6 @@ type Supplier = {
   created_at: string;
 };
 
-// Fetch all suppliers
 const fetchSuppliers = async (): Promise<Supplier[]> => {
   const { data, error } = await supabase
     .from("suppliers")
@@ -45,7 +44,6 @@ const fetchSuppliers = async (): Promise<Supplier[]> => {
   return data || [];
 };
 
-// Mutations
 const addSupplier = async (name: string, phone?: string) => {
   const { error } = await supabase
     .from("suppliers")
@@ -77,13 +75,11 @@ function SuppliersPage() {
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
 
-  // Query
   const { data: suppliers = [], isLoading, error } = useQuery({
     queryKey: ["suppliers"],
     queryFn: fetchSuppliers,
   });
 
-  // Mutations
   const addMutation = useMutation({
     mutationFn: ({ name, phone }: { name: string; phone?: string }) =>
       addSupplier(name, phone),
@@ -240,7 +236,6 @@ function SuppliersPage() {
         </div>
       )}
 
-      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
