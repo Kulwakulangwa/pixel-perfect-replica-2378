@@ -100,6 +100,7 @@ function SettingsPage() {
   const [newCashierPassword, setNewCashierPassword] = useState("");
   const [newCashierName, setNewCashierName] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [addingCashier, setAddingCashier] = useState(false);
 
   const { data: shop } = useQuery({
     queryKey: ["shopSettings"],
@@ -184,30 +185,28 @@ function SettingsPage() {
     e.preventDefault();
     if (!newCashierEmail || !newCashierPassword || !newCashierName) return;
 
+    setAddingCashier(true);
     try {
-      // For now, we'll use a workaround: open the Supabase dashboard to add user manually.
-      // But we can also use the Edge Function if deployed.
-      // Since the Edge Function is not deployed, we'll redirect to the dashboard.
-      const confirm = window.confirm(
-        "Tafadhali ongeza mtumiaji mwenyewe kwenye dashboard ya Supabase.\n" +
-        "Nenda kwenye Authentication -> Users -> Add User.\n" +
-        "Baada ya kuongeza, mtumiaji atajitokeza hapa."
-      );
-      if (confirm) {
-        window.open("https://app.supabase.com/project/ejapxqqtvuouqggdbmxx/auth/users", "_blank");
-      }
-      // Reset form and close dialog
+      // Call the PostgreSQL function that creates the user
+      const { data, error } = await supabase.rpc('create_cashier', {
+        email: newCashierEmail,
+        password: newCashierPassword,
+        full_name: newCashierName,
+      });
+      if (error) throw error;
+
+      // Success
+      queryClient.invalidateQueries({ queryKey: ["cashiers"] });
       setIsAddDialogOpen(false);
       setNewCashierEmail("");
       setNewCashierPassword("");
       setNewCashierName("");
-      // Refresh cashier list after a while
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["cashiers"] });
-      }, 5000);
+      alert("Cashier imeongezwa kikamilifu!");
     } catch (error) {
       console.error("Error creating cashier:", error);
       alert("Imeshindwa kuunda akaunti. Jaribu tena.");
+    } finally {
+      setAddingCashier(false);
     }
   };
 
@@ -341,7 +340,10 @@ function SettingsPage() {
                     />
                   </div>
                   <div className="flex justify-end">
-                    <Button type="submit">Hifadhi</Button>
+                    <Button type="submit" disabled={addingCashier}>
+                      {addingCashier ? <Loader2 className="animate-spin mr-2" /> : null}
+                      {addingCashier ? "Inaongezwa..." : "Hifadhi"}
+                    </Button>
                   </div>
                 </form>
               </DialogContent>
