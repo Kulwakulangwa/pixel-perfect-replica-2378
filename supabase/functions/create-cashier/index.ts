@@ -5,8 +5,8 @@ Deno.serve(async (req) => {
     const { email, password, full_name } = await req.json()
     
     const supabaseAdmin = createClient(
-      Deno.env.get('https://ejapxqqtvuouqggdbmxx.supabase.co') ?? '',
-      Deno.env.get('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqYXB4cXF0dnVvdXFnZ2RibXh4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MzI3NTEzNywiZXhwIjoyMDk4ODUxMTM3fQ.ogiIq2PFqqoUr7hRaf3BPg3ehLojnhKiIXbFk9uK1Po') ?? '',
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
