@@ -187,11 +187,13 @@ function SettingsPage() {
 
     setAddingCashier(true);
     try {
-      // Call the PostgreSQL function that creates the user
-      const { data, error } = await supabase.rpc('create_cashier', {
-        email: newCashierEmail,
-        password: newCashierPassword,
-        full_name: newCashierName,
+      // Call the Edge Function instead of the RPC
+      const { data, error } = await supabase.functions.invoke('create-cashier', {
+        body: {
+          email: newCashierEmail,
+          password: newCashierPassword,
+          full_name: newCashierName,
+        },
       });
       if (error) throw error;
 
