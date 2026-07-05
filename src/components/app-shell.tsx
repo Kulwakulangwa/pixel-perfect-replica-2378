@@ -44,6 +44,7 @@ export function AppShell({ children, requireOwner }: { children: ReactNode; requ
 
   useEffect(() => {
     if (loading) return;
+    if (!staff) return;
     if (requireOwner && staff.role !== "owner") {
       navigate({ to: "/pos", replace: true });
     }
