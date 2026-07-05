@@ -34,7 +34,7 @@ const CASHIER_NAV: NavItem[] = [
 ];
 
 export function AppShell({ children, requireOwner }: { children: ReactNode; requireOwner?: boolean }) {
-  const { staff, loading } = useStaff();
+  const { staff, loading, error, refetch } = useStaff();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export function AppShell({ children, requireOwner }: { children: ReactNode; requ
 
   useEffect(() => {
     if (loading) return;
-    if (!staff) { void signOut(); return; }
+    if (!staff) return;
     if (requireOwner && staff.role !== "owner") {
       navigate({ to: "/pos", replace: true });
     }
@@ -53,7 +53,20 @@ export function AppShell({ children, requireOwner }: { children: ReactNode; requ
   if (loading || !staff) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        {loading ? (
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        ) : (
+          <div className="max-w-sm px-6 text-center">
+            <h1 className="text-xl font-semibold tracking-tight">Account setup is not ready</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {error || "Your login worked, but the staff profile could not be loaded yet."}
+            </p>
+            <div className="mt-5 flex justify-center gap-2">
+              <Button type="button" onClick={() => void refetch()}>Retry</Button>
+              <Button type="button" variant="outline" onClick={() => void signOut()}>Sign out</Button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
