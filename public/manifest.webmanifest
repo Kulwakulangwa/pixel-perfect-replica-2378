@@ -1,0 +1,17 @@
+{
+  "name": "Wakuja Shop POS",
+  "short_name": "Wakuja POS",
+  "description": "Point of sale and shop management for Wakuja Shop",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2f6fed",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
