@@ -38,7 +38,7 @@ type ShopSettings = {
 
 type Staff = {
   id: string;
-  user_id: string;
+  email: string;
   full_name: string | null;
   role: string;
   can_discount: boolean;
@@ -56,7 +56,7 @@ const fetchShopSettings = async (): Promise<ShopSettings> => {
 const fetchCashiers = async (): Promise<Staff[]> => {
   const { data, error } = await supabase
     .from("staff")
-    .select("id, user_id, full_name, role, can_discount")
+    .select("id, email, full_name, role, can_discount")
     .eq("role", "cashier");
   if (error) throw error;
   return data;
@@ -101,7 +101,7 @@ function SettingsPage() {
   const [newCashierName, setNewCashierName] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  const { data: shop, isLoading: shopLoading, refetch: refetchShop } = useQuery({
+  const { data: shop } = useQuery({
     queryKey: ["shopSettings"],
     queryFn: fetchShopSettings,
     onSuccess: (data) => {
@@ -185,19 +185,26 @@ function SettingsPage() {
     if (!newCashierEmail || !newCashierPassword || !newCashierName) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke('create-cashier', {
-        body: {
-          email: newCashierEmail,
-          password: newCashierPassword,
-          full_name: newCashierName,
-        },
-      });
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["cashiers"] });
+      // For now, we'll use a workaround: open the Supabase dashboard to add user manually.
+      // But we can also use the Edge Function if deployed.
+      // Since the Edge Function is not deployed, we'll redirect to the dashboard.
+      const confirm = window.confirm(
+        "Tafadhali ongeza mtumiaji mwenyewe kwenye dashboard ya Supabase.\n" +
+        "Nenda kwenye Authentication -> Users -> Add User.\n" +
+        "Baada ya kuongeza, mtumiaji atajitokeza hapa."
+      );
+      if (confirm) {
+        window.open("https://app.supabase.com/project/ejapxqqtvuouqggdbmxx/auth/users", "_blank");
+      }
+      // Reset form and close dialog
       setIsAddDialogOpen(false);
       setNewCashierEmail("");
       setNewCashierPassword("");
       setNewCashierName("");
+      // Refresh cashier list after a while
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["cashiers"] });
+      }, 5000);
     } catch (error) {
       console.error("Error creating cashier:", error);
       alert("Imeshindwa kuunda akaunti. Jaribu tena.");
@@ -358,8 +365,8 @@ function SettingsPage() {
               <TableBody>
                 {cashiers.map((cashier) => (
                   <TableRow key={cashier.id}>
-                    <TableCell>{cashier.full_name || cashier.user_id}</TableCell>
-                    <TableCell>{cashier.user_id}</TableCell>
+                    <TableCell>{cashier.full_name || cashier.email}</TableCell>
+                    <TableCell>{cashier.email}</TableCell>
                     <TableCell>
                       <Switch
                         checked={cashier.can_discount}
