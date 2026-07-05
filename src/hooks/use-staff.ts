@@ -68,6 +68,7 @@ export function useStaff() {
 }
 
 export async function signOut() {
+  console.trace("Wakuja signOut called");
   await supabase.auth.signOut();
   window.location.href = "/auth";
 }
