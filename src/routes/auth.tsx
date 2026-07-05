@@ -18,10 +18,8 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -31,26 +29,13 @@ function AuthPage() {
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
 
-  const submit = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
-        toast.success("Karibu tena!");
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: { full_name: fullName.trim() || email.split("@")[0] },
-          },
-        });
-        if (error) throw error;
-        toast.success("Akaunti imefunguliwa. Karibu Wakuja Shop.");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
+      toast.success("Karibu tena!");
     } catch (err) {
       toast.error((err as Error).message || "Kuna tatizo. Jaribu tena.");
     } finally {
@@ -70,44 +55,39 @@ function AuthPage() {
         </div>
 
         <div className="card-elev card-elev-2 p-6">
-          <div className="flex rounded-lg bg-muted p-1 mb-6">
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className={`flex-1 text-sm font-medium py-2 rounded-md transition ${mode === "signin" ? "bg-surface shadow-elev-1" : "text-muted-foreground"}`}
-            >Ingia</button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              className={`flex-1 text-sm font-medium py-2 rounded-md transition ${mode === "signup" ? "bg-surface shadow-elev-1" : "text-muted-foreground"}`}
-            >Fungua akaunti</button>
-          </div>
-
-          <form onSubmit={submit} className="space-y-4">
-            {mode === "signup" && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Jina kamili</Label>
-                <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jina lako" />
-              </div>
-            )}
+          <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Barua pepe</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+              <Input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Neno la siri</Label>
-              <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "signin" ? "current-password" : "new-password"} />
+              <Input
+                id="password"
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
             </div>
             <Button type="submit" disabled={busy} className="w-full h-11 text-base">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "signin" ? "Ingia" : "Fungua akaunti"}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ingia"}
             </Button>
           </form>
         </div>
 
         <p className="text-xs text-muted-foreground text-center mt-6">
-          {mode === "signup"
-            ? "Akaunti mpya zitakuwa cashier. Owner atabadilisha baadaye kwenye Settings."
-            : "Tumia barua pepe na neno la siri lako."}
+          Tumia barua pepe na neno la siri lako.
         </p>
       </div>
     </div>
