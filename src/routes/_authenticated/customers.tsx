@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import {
   Table,
@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { format } from "date-fns";
-import { Loader2, Plus, UserPlus } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/customers")({
   ssr: false,
@@ -60,7 +60,7 @@ type CustomerPayment = {
 // --- Queries ---
 const fetchCustomers = async (): Promise<CustomerBalance[]> => {
   const { data, error } = await supabase
-    .from("customer_balances")
+    .from("v_customer_balances")
     .select("*");
   if (error) throw error;
   return data || [];
@@ -111,13 +111,11 @@ function CustomersPage() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
-  // Fetch customers
   const { data: customers = [], isLoading, error } = useQuery({
     queryKey: ["customers"],
     queryFn: fetchCustomers,
   });
 
-  // Fetch selected customer details when modal opens
   const { data: sales = [], isLoading: salesLoading } = useQuery({
     queryKey: ["customerSales", selectedCustomerId],
     queryFn: () => fetchCustomerSales(selectedCustomerId!),
@@ -130,7 +128,6 @@ function CustomersPage() {
     enabled: !!selectedCustomerId,
   });
 
-  // Mutations
   const addCustomerMutation = useMutation({
     mutationFn: ({ name, phone }: { name: string; phone?: string }) =>
       addCustomer(name, phone),
@@ -151,7 +148,6 @@ function CustomersPage() {
     },
   });
 
-  // Handlers
   const handleCustomerClick = (customerId: string) => {
     setSelectedCustomerId(customerId);
     setDetailOpen(true);
@@ -180,7 +176,6 @@ function CustomersPage() {
     form.reset();
   };
 
-  // Format currency (Tanzanian Shilling)
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
 
@@ -283,7 +278,6 @@ function CustomersPage() {
         </div>
       )}
 
-      {/* Customer Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
