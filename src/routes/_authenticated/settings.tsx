@@ -45,19 +45,36 @@ type Staff = {
   can_discount: boolean;
 };
 
-// --- Fetch shop settings using RPC to get current shop ID ---
+// --- Fetch shop settings with fallback ---
 const fetchShopSettings = async (): Promise<ShopSettings> => {
-  // Get the current shop ID
-  const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
-  if (shopError) throw shopError;
-  if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
+  // Get the current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw new Error("Haujaingia. Tafadhali ingia tena.");
+  if (!user) throw new Error("Hakuna mtumiaji aliyeingia.");
+
+  // Get shop_id directly from staff table (more reliable than RPC)
+  const { data: staff, error: staffError } = await supabase
+    .from("staff")
+    .select("shop_id")
+    .eq("id", user.id)
+    .single();
+  
+  if (staffError) {
+    console.error("Staff fetch error:", staffError);
+    throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu. Wasiliana na msimamizi.");
+  }
+  
+  if (!staff?.shop_id) {
+    throw new Error("Duka halijapatikana. Wasiliana na msimamizi.");
+  }
 
   // Now fetch settings for that shop
   const { data, error } = await supabase
     .from("shops")
     .select("id, name, logo_url, receipt_footer")
-    .eq('id', shopId)
+    .eq('id', staff.shop_id)
     .single();
+  
   if (error) throw error;
   return data;
 };
@@ -111,9 +128,10 @@ function SettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [addingCashier, setAddingCashier] = useState(false);
 
-  const { data: shop, isLoading: shopLoading, error: shopError } = useQuery({
+  const { data: shop, isLoading: shopLoading, error: shopError, refetch } = useQuery({
     queryKey: ["shopSettings"],
     queryFn: fetchShopSettings,
+    retry: 1,
     onSuccess: (data) => {
       if (data) {
         setShopId(data.id);
@@ -122,7 +140,8 @@ function SettingsPage() {
       }
     },
     onError: (err) => {
-      toast.error("Imeshindwa kupakia maelezo ya duka: " + (err as Error).message);
+      console.error("Shop settings error:", err);
+      toast.error("Imeshindwa kupakia maelezo ya duka. Tafadhali ingia tena.");
     }
   });
 
@@ -170,7 +189,7 @@ function SettingsPage() {
   const handleShopUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!shopId) {
-      toast.error("Duka halijapatikana.");
+      toast.error("Duka halijapatikana. Tafadhali ingia tena.");
       return;
     }
     updateShopMutation.mutate({
@@ -182,8 +201,19 @@ function SettingsPage() {
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !shopId) {
+    if (!file) {
       toast.error("Chagua picha kwanza.");
+      return;
+    }
+    
+    if (!shopId) {
+      toast.error("Duka halijapatikana. Tafadhali ingia tena.");
+      return;
+    }
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Picha ni kubwa sana. Tafadhali chagua picha chini ya 2MB.");
       return;
     }
 
@@ -192,7 +222,6 @@ function SettingsPage() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${shopId}/logo.${fileExt}`;
       
-      // Upload to public bucket
       const { error: uploadError } = await supabase.storage
         .from('shop-media')
         .upload(fileName, file, { 
@@ -202,12 +231,10 @@ function SettingsPage() {
         });
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('shop-media')
         .getPublicUrl(fileName);
       
-      // Update shop record with the URL
       await updateShopSettings({
         id: shopId,
         logo_url: publicUrl,
@@ -265,6 +292,30 @@ function SettingsPage() {
       deleteCashierMutation.mutate(staffId);
     }
   };
+
+  if (shopLoading) {
+    return (
+      <AppShell>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (shopError) {
+    return (
+      <AppShell>
+        <div className="p-8 text-center">
+          <div className="text-red-500 mb-4">Imeshindwa kupakia maelezo ya duka</div>
+          <Button onClick={() => refetch()}>Jaribu tena</Button>
+          <Button variant="outline" className="ml-2" onClick={() => supabase.auth.signOut()}>
+            Ingia tena
+          </Button>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -337,7 +388,7 @@ function SettingsPage() {
                 {uploadingLogo ? <Loader2 className="animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                 {uploadingLogo ? "Inapakia..." : "Pakia Logo"}
               </Button>
-              <p className="text-xs text-muted-foreground mt-1">Saizi inayopendekezwa: 200x200px</p>
+              <p className="text-xs text-muted-foreground mt-1">Saizi inayopendekezwa: 200x200px, max 2MB</p>
             </div>
           </div>
         </div>
