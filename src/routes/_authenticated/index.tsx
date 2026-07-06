@@ -23,16 +23,8 @@ export const Route = createFileRoute("/_authenticated/")({
         throw redirect({ to: "/pos" });
       }
     } catch (err) {
-      // If anything fails, redirect to auth
       throw redirect({ to: "/auth" });
     }
   },
-  // Fallback component (should never render due to redirect)
-  component: () => {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  },
+  component: () => null, // never rendered due to redirect
 });
