@@ -29,6 +29,56 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
   };
 }
 
+function createMissingSupabaseClient(message: string) {
+  const fallbackError = new Error(message);
+
+  const createQueryBuilder = () => {
+    const result = { data: null, error: fallbackError };
+
+    return {
+      select: () => createQueryBuilder(),
+      insert: async () => result,
+      update: () => createQueryBuilder(),
+      delete: () => createQueryBuilder(),
+      eq: () => createQueryBuilder(),
+      order: () => createQueryBuilder(),
+      limit: () => createQueryBuilder(),
+      maybeSingle: async () => result,
+      single: async () => result,
+      then: (resolve: (value: typeof result) => void) => Promise.resolve(result).then(resolve),
+    } as unknown as ReturnType<typeof createClient<Database>>;
+  };
+
+  return {
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: fallbackError }),
+      getUser: async () => ({ data: { user: null }, error: fallbackError }),
+      getClaims: async () => ({ data: null, error: fallbackError }),
+      signOut: async () => ({ error: fallbackError }),
+      signInWithPassword: async () => ({
+        data: { user: null, session: null },
+        error: fallbackError,
+      }),
+      onAuthStateChange: () => ({
+        data: { subscription: { unsubscribe: () => undefined } },
+        error: fallbackError,
+      }),
+    },
+    from: () => createQueryBuilder(),
+    rpc: async () => ({ data: null, error: fallbackError }),
+    storage: {
+      from: () => ({
+        getPublicUrl: () => ({ data: { publicUrl: "" }, error: fallbackError }),
+        upload: async () => ({ data: null, error: fallbackError }),
+        remove: async () => ({ data: null, error: fallbackError }),
+      }),
+    },
+    functions: {
+      invoke: async () => ({ data: null, error: fallbackError }),
+    },
+  } as unknown as ReturnType<typeof createClient<Database>>;
+}
+
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
@@ -42,8 +92,8 @@ function createSupabaseClient() {
       ...(!SUPABASE_PUBLISHABLE_KEY ? ["SUPABASE_PUBLISHABLE_KEY"] : []),
     ];
     const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Connect Supabase in Lovable Cloud.`;
-    console.error(`[Supabase] ${message}`);
-    throw new Error(message);
+    console.warn(`[Supabase] ${message}`);
+    return createMissingSupabaseClient(message);
   }
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
