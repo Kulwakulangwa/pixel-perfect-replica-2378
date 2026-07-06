@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +32,7 @@ const navItems = [
 ];
 
 type AppShellProps = {
-  children: ReactNode;
+  children: React.ReactNode;
   requireOwner?: boolean;
 };
 
@@ -44,19 +44,16 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  // --- Hydration safety: only render dynamic content after mount ---
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!mounted || !loading) return;
+    if (!mounted) return;
     let isMounted = true;
     const fetchUserRole = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           navigate({ to: "/auth" });
           return;
@@ -93,9 +90,8 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [mounted, loading, navigate]);
+  }, [mounted, navigate]);
 
-  // Owner-only redirect
   useEffect(() => {
     if (!loading && userRole === "cashier" && requireOwner) {
       navigate({ to: "/pos" });
@@ -107,7 +103,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     navigate({ to: "/auth" });
   };
 
-  // --- Before hydration, show a spinner (server & client match) ---
   if (!mounted || loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -116,11 +111,12 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     );
   }
 
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(userRole));
+  const filteredNavItems = navItems.filter(item =>
+    item.roles.includes(userRole as any)
+  );
 
   return (
     <div className="flex min-h-screen bg-background" suppressHydrationWarning>
-      {/* Mobile overlay */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -128,12 +124,11 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transition-transform duration-300",
           "lg:translate-x-0 lg:relative",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full",
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-16 items-center justify-between px-4 border-b">
@@ -161,7 +156,9 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
                   to={item.to}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
-                    isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
                   )}
                   onClick={() => setIsSidebarOpen(false)}
                 >
@@ -185,7 +182,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
         <header className="flex h-16 items-center justify-between border-b px-4 lg:px-6">
           <div className="flex items-center gap-2">
@@ -206,21 +202,15 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           </Button>
         </header>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
       </div>
     </div>
   );
 }
 
-export function PageHeader({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
-}) {
+export function PageHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
