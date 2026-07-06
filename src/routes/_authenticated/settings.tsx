@@ -45,36 +45,60 @@ type Staff = {
   can_discount: boolean;
 };
 
-// --- Fetch shop settings with fallback ---
+// Hardcoded shop ID for the owner
+const OWNER_EMAIL = 'kulwakulangwa@gmail.com';
+const SHOP_ID = '11111111-1111-1111-1111-111111111111';
+
 const fetchShopSettings = async (): Promise<ShopSettings> => {
-  // Get the current user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw new Error("Haujaingia. Tafadhali ingia tena.");
   if (!user) throw new Error("Hakuna mtumiaji aliyeingia.");
 
-  // Get shop_id directly from staff table (more reliable than RPC)
+  // For the owner, use hardcoded shop ID
+  if (user.email === OWNER_EMAIL) {
+    const { data, error } = await supabase
+      .from("shops")
+      .select("id, name, logo_url, receipt_footer")
+      .eq('id', SHOP_ID)
+      .single();
+    if (error) {
+      console.error("Shop fetch error:", error);
+      throw new Error("Imeshindwa kupakia maelezo ya duka.");
+    }
+    return data;
+  }
+
+  // For other users (cashiers), try RPC first, then fallback
+  try {
+    const { data: shopIdRpc, error: rpcError } = await supabase.rpc('current_shop_id');
+    if (!rpcError && shopIdRpc) {
+      const { data, error } = await supabase
+        .from("shops")
+        .select("id, name, logo_url, receipt_footer")
+        .eq('id', shopIdRpc)
+        .single();
+      if (!error) return data;
+    }
+  } catch (e) {
+    console.warn("RPC failed, trying fallback:", e);
+  }
+
+  // Fallback: query staff directly
   const { data: staff, error: staffError } = await supabase
     .from("staff")
     .select("shop_id")
     .eq("id", user.id)
     .single();
-  
-  if (staffError) {
-    console.error("Staff fetch error:", staffError);
-    throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu. Wasiliana na msimamizi.");
-  }
-  
-  if (!staff?.shop_id) {
-    throw new Error("Duka halijapatikana. Wasiliana na msimamizi.");
+  if (staffError || !staff?.shop_id) {
+    console.error("Staff error:", staffError);
+    throw new Error("Hakuna duka lililopatikana. Tafadhali ingia tena.");
   }
 
-  // Now fetch settings for that shop
   const { data, error } = await supabase
     .from("shops")
     .select("id, name, logo_url, receipt_footer")
     .eq('id', staff.shop_id)
     .single();
-  
   if (error) throw error;
   return data;
 };
@@ -211,7 +235,6 @@ function SettingsPage() {
       return;
     }
 
-    // Check file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       toast.error("Picha ni kubwa sana. Tafadhali chagua picha chini ya 2MB.");
       return;
