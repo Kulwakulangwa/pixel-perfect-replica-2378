@@ -42,12 +42,16 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userRole, setUserRole] = useState<"owner" | "cashier" | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Mark hydration complete after mount
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     const fetchUserRole = async () => {
       try {
-        // 1. Get the session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
         if (!session) {
@@ -55,7 +59,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           return;
         }
 
-        // 2. Get the user's role from staff table
         const { data: staff, error: staffError } = await supabase
           .from("staff")
           .select("role")
@@ -63,32 +66,26 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           .maybeSingle();
 
         if (staffError) {
-          console.warn("Staff fetch error:", staffError);
-          // If staff record missing, redirect to auth or set default role
-          // For now, assume cashier
+          console.warn("Staff fetch error, defaulting to cashier:", staffError);
           setUserRole("cashier");
         } else if (staff) {
           setUserRole(staff.role as "owner" | "cashier");
         } else {
-          // No staff record – maybe not set up; treat as cashier
-          console.warn("No staff record found for user, defaulting to cashier");
           setUserRole("cashier");
         }
 
         setLoading(false);
       } catch (err) {
-        console.error("Error fetching user role:", err);
-        setError("Failed to load user data. Please try again.");
+        console.error("Error in fetchUserRole:", err);
+        setUserRole("cashier");
         setLoading(false);
-        // Optionally redirect to logout
-        // navigate({ to: "/auth" });
       }
     };
 
     fetchUserRole();
   }, [navigate]);
 
-  // Handle owner-only redirect
+  // Owner-only redirect
   useEffect(() => {
     if (!loading && userRole === "cashier" && requireOwner) {
       navigate({ to: "/pos" });
@@ -100,7 +97,8 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     navigate({ to: "/auth" });
   };
 
-  if (loading) {
+  // Don't render sidebar until hydrated to avoid mismatch
+  if (!hydrated || loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -108,17 +106,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-screen flex-col gap-4">
-        <div className="text-red-500">{error}</div>
-        <Button onClick={() => window.location.reload()}>Jaribu tena</Button>
-        <Button variant="outline" onClick={handleLogout}>Toka</Button>
-      </div>
-    );
-  }
-
-  // Filter nav items based on role
   const filteredNavItems = navItems.filter(item => 
     item.roles.includes(userRole as any)
   );
@@ -222,7 +209,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   );
 }
 
-// PageHeader component (exported)
 export function PageHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
