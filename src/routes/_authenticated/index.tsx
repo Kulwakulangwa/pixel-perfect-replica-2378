@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfToday, endOfToday } from "date-fns";
+import { useEffect } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,7 +10,7 @@ import { Loader2, TrendingUp, ShoppingBag, CreditCard, Wallet } from "lucide-rea
 
 export const Route = createFileRoute("/_authenticated/")({
   ssr: false,
-  component: DashboardPage,
+  component: IndexPage,
 });
 
 type TodaySale = {
@@ -33,8 +34,11 @@ type TodaySummary = {
   average_sale: number;
 };
 
-function DashboardPage() {
-  const { data: user } = useQuery({
+function IndexPage() {
+  const navigate = useNavigate();
+
+  // Get current user
+  const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
@@ -43,7 +47,8 @@ function DashboardPage() {
     },
   });
 
-  const { data: staff } = useQuery({
+  // Get staff role
+  const { data: staff, isLoading: staffLoading } = useQuery({
     queryKey: ["currentStaff"],
     queryFn: async () => {
       if (!user) return null;
@@ -58,14 +63,23 @@ function DashboardPage() {
     enabled: !!user,
   });
 
+  // Redirect cashiers to POS
+  useEffect(() => {
+    if (staff?.role === 'cashier') {
+      navigate({ to: "/pos", replace: true });
+    }
+  }, [staff, navigate]);
+
+  // Fetch today's sales (only for owners)
   const { data, isLoading, error } = useQuery({
-    queryKey: ["todaySales", staff?.id, staff?.role],
+    queryKey: ["todaySales", staff?.id],
     queryFn: async () => {
       if (!staff) return null;
       const today = new Date();
       const from = startOfToday().toISOString();
       const to = endOfToday().toISOString();
 
+      // Owners see all sales, cashiers see only their own (but we redirect cashiers, so this is only for owners)
       let query = supabase
         .from("sales")
         .select(`
@@ -83,10 +97,7 @@ function DashboardPage() {
         .eq("status", "completed")
         .order("created_at", { ascending: false });
 
-      if (staff.role === 'cashier') {
-        query = query.eq("cashier_id", staff.id);
-      }
-
+      // If owner, show all; if cashier (but redirected), this won't run.
       const { data: sales, error: salesError } = await query;
       if (salesError) throw salesError;
 
@@ -101,16 +112,36 @@ function DashboardPage() {
         summary: { total_revenue: totalRevenue, total_sales: totalSales, total_cash: totalCash, total_credit: totalCredit, average_sale: averageSale },
       };
     },
-    enabled: !!staff,
+    enabled: staff?.role === 'owner', // Only fetch if owner
   });
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
-
   const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
 
-  if (isLoading) return <AppShell><div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div></AppShell>;
-  if (error || !data) return <AppShell><div className="text-red-500 p-4">Imeshindwa kupakia mauzo ya leo.</div></AppShell>;
+  // Loading state
+  if (userLoading || staffLoading || isLoading) {
+    return (
+      <AppShell>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  // If cashier, we're redirecting, so return null (or a placeholder)
+  if (staff?.role === 'cashier') {
+    return null; // will redirect
+  }
+
+  if (error || !data) {
+    return (
+      <AppShell>
+        <div className="text-red-500 p-4">Imeshindwa kupakia mauzo ya leo. Jaribu tena.</div>
+      </AppShell>
+    );
+  }
 
   const { sales, summary } = data;
 
