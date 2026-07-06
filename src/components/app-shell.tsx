@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["owner"] },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner"] },
   { to: "/pos", label: "POS", icon: ShoppingCart, roles: ["owner", "cashier"] },
   { to: "/today", label: "Today", icon: Calendar, roles: ["owner", "cashier"] },
   { to: "/customers", label: "Wateja", icon: Users, roles: ["owner", "cashier"] },
@@ -39,7 +39,7 @@ type AppShellProps = {
 export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const navigate = useNavigate();
   const router = useRouter();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Default to OPEN on desktop
   const [userRole, setUserRole] = useState<"owner" | "cashier">("cashier");
   const [loading, setLoading] = useState(true);
 
@@ -76,7 +76,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       }
     };
 
-    // Force a timeout to avoid infinite loading
     const timeoutId = setTimeout(() => {
       if (isMounted && loading) {
         console.warn("Role fetch timed out, defaulting to cashier");
@@ -105,7 +104,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     navigate({ to: "/auth" });
   };
 
-  // Always render something after loading – no hydration mismatch
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -114,7 +112,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     );
   }
 
-  const filteredNavItems = navItems.filter(item => 
+  const filteredNavItems = navItems.filter(item =>
     item.roles.includes(userRole as any)
   );
 
@@ -128,10 +126,11 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Always visible on desktop */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transition-transform duration-300 lg:relative lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transition-transform duration-300",
+          "lg:translate-x-0 lg:relative", // Always visible on desktop
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -150,8 +149,8 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           </Button>
         </div>
 
-        <div className="px-3 py-4">
-          <nav className="space-y-1">
+        <div className="px-3 py-4 h-[calc(100vh-4rem)] flex flex-col">
+          <nav className="space-y-1 flex-1">
             {filteredNavItems.map((item) => {
               const isActive = router.state.location.pathname === item.to;
               return (
@@ -173,7 +172,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
             })}
           </nav>
 
-          <div className="absolute bottom-4 left-3 right-3">
+          <div className="pt-4 border-t">
             <Button
               variant="outline"
               className="w-full justify-start gap-2 text-sm"
@@ -202,11 +201,9 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
               {userRole === "owner" ? "Meneja" : "Cashier"}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="lg:hidden">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="lg:hidden">
+            <LogOut className="h-4 w-4" />
+          </Button>
         </header>
 
         <main className="flex-1 overflow-auto">
@@ -217,7 +214,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   );
 }
 
-// PageHeader component (exported)
 export function PageHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
