@@ -2,7 +2,6 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/")({
-  ssr: false,
   beforeLoad: async () => {
     try {
       const {
@@ -28,5 +27,5 @@ export const Route = createFileRoute("/_authenticated/")({
       throw redirect({ to: "/auth" });
     }
   },
-  component: () => null, // never rendered
+  component: () => null,
 });
