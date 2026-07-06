@@ -2,7 +2,6 @@ import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -20,7 +19,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Navigation items
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["owner"] },
   { to: "/pos", label: "POS", icon: ShoppingCart, roles: ["owner", "cashier"] },
@@ -60,7 +58,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       setUserRole(staff?.role || "cashier");
       setLoading(false);
 
-      // If this page requires owner but user is cashier, redirect to POS
       if (requireOwner && staff?.role === "cashier") {
         navigate({ to: "/pos" });
       }
@@ -81,33 +78,13 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     );
   }
 
-  // Filter nav items based on role
   const filteredNavItems = navItems.filter(item => 
     item.roles.includes(userRole as any)
   );
 
-  const NavLink = ({ item }: { item: typeof navItems[0] }) => {
-    const isActive = router.state.location.pathname === item.to;
-    return (
-      <Link
-        to={item.to}
-        className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
-          isActive
-            ? "bg-primary text-primary-foreground"
-            : "hover:bg-muted"
-        )}
-        onClick={() => setIsSidebarOpen(false)}
-      >
-        <item.icon className="h-4 w-4" />
-        <span>{item.label}</span>
-      </Link>
-    );
-  };
-
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Mobile sidebar overlay */}
+      {/* Mobile overlay */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -137,11 +114,27 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           </Button>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-4rem)] px-3 py-4">
+        <div className="px-3 py-4">
           <nav className="space-y-1">
-            {filteredNavItems.map((item) => (
-              <NavLink key={item.to} item={item} />
-            ))}
+            {filteredNavItems.map((item) => {
+              const isActive = router.state.location.pathname === item.to;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  )}
+                  onClick={() => setIsSidebarOpen(false)}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="absolute bottom-4 left-3 right-3">
@@ -154,12 +147,11 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
               Toka
             </Button>
           </div>
-        </ScrollArea>
+        </div>
       </aside>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
-        {/* Header */}
         <header className="flex h-16 items-center justify-between border-b px-4 lg:px-6">
           <div className="flex items-center gap-2">
             <Button
@@ -174,14 +166,11 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
               {userRole === "owner" ? "Meneja" : "Cashier"}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="lg:hidden">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="lg:hidden">
+            <LogOut className="h-4 w-4" />
+          </Button>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-auto">
           {children}
         </main>
@@ -190,21 +179,13 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   );
 }
 
-// Export PageHeader as a named export
-export function PageHeader({ 
-  title, 
-  description, 
-  action 
-}: { 
-  title: string; 
-  description?: string; 
-  action?: React.ReactNode;
-}) {
+// PageHeader component (exported)
+export function PageHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        {description && <p className="text-muted-foreground text-sm">{description}</p>}
       </div>
       {action && <div>{action}</div>}
     </div>
