@@ -158,7 +158,13 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
 
   const save = useMutation({
     mutationFn: async () => {
+      // Get shop_id using the RPC function – secure and always returns the current shop
+      const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
+      if (shopError) throw shopError;
+      if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
+
       const payload = {
+        shop_id: shopId,
         name: name.trim(),
         sku: sku.trim() || null,
         buying_price: Number(buying) || 0,
@@ -167,12 +173,19 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
         minimum_stock: Number(minStock) || 0,
         image_url: imageUrl || null,
       };
+
       if (product) {
-        const { error } = await supabase.from("products").update(payload).eq("id", product.id);
+        // Editing – keep shop_id unchanged
+        const { error } = await supabase
+          .from("products")
+          .update(payload)
+          .eq("id", product.id);
         if (error) throw error;
       } else {
-        const { data: staff } = await supabase.from("staff").select("shop_id").single();
-        const { error } = await supabase.from("products").insert({ ...payload, shop_id: staff!.shop_id });
+        // Insert – shop_id already included
+        const { error } = await supabase
+          .from("products")
+          .insert(payload);
         if (error) throw error;
       }
     },
