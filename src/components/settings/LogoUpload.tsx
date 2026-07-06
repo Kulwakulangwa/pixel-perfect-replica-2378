@@ -45,10 +45,7 @@ export function LogoUpload({ shopId, currentLogoUrl }: LogoUploadProps) {
         data: { publicUrl },
       } = supabase.storage.from("shop-media").getPublicUrl(fileName);
 
-      await supabase
-        .from("shops")
-        .update({ logo_url: publicUrl })
-        .eq("id", shopId);
+      await supabase.from("shops").update({ logo_url: publicUrl }).eq("id", shopId);
 
       queryClient.invalidateQueries({ queryKey: ["shopSettings"] });
       toast.success("Logo imepakiwa!");
@@ -90,11 +87,7 @@ export function LogoUpload({ shopId, currentLogoUrl }: LogoUploadProps) {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Upload className="mr-2 h-4 w-4" />
-            )}
+            {uploading ? <Loader2 className="animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
             {uploading ? "Inapakia..." : "Pakia Logo"}
           </Button>
           <p className="text-xs text-muted-foreground mt-1">

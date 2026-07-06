@@ -81,11 +81,7 @@ function SettingsPage() {
         <div className="p-8 text-center">
           <div className="text-red-500 mb-4">Imeshindwa kupakia maelezo ya duka</div>
           <Button onClick={() => refetch()}>Jaribu tena</Button>
-          <Button
-            variant="outline"
-            className="ml-2"
-            onClick={() => supabase.auth.signOut()}
-          >
+          <Button variant="outline" className="ml-2" onClick={() => supabase.auth.signOut()}>
             Ingia tena
           </Button>
         </div>
@@ -95,10 +91,7 @@ function SettingsPage() {
 
   return (
     <AppShell>
-      <PageHeader
-        title="Mipangilio"
-        description="Dhibiti mazingira ya duka lako"
-      />
+      <PageHeader title="Mipangilio" description="Dhibiti mazingira ya duka lako" />
       <div className="space-y-8">
         <ShopInfo
           shopId={shop.id}

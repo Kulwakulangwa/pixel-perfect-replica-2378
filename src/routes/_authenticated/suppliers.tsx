@@ -38,10 +38,7 @@ type Supplier = {
 
 // Fetch all suppliers for the current shop
 const fetchSuppliers = async (): Promise<Supplier[]> => {
-  const { data, error } = await supabase
-    .from("suppliers")
-    .select("*")
-    .order("name");
+  const { data, error } = await supabase.from("suppliers").select("*").order("name");
   if (error) throw error;
   return data || [];
 };
@@ -49,18 +46,18 @@ const fetchSuppliers = async (): Promise<Supplier[]> => {
 // Add supplier with current shop_id
 const addSupplier = async (name: string, phone?: string, note?: string) => {
   // Get current shop_id
-  const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
+  const { data: shopId, error: shopError } = await supabase.rpc("current_shop_id");
   if (shopError) throw shopError;
   if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
 
-  const { error } = await supabase
-    .from("suppliers")
-    .insert([{ 
-      shop_id: shopId, 
-      name, 
+  const { error } = await supabase.from("suppliers").insert([
+    {
+      shop_id: shopId,
+      name,
       phone: phone || null,
-      note: note || null
-    }]);
+      note: note || null,
+    },
+  ]);
   if (error) throw error;
 };
 
@@ -75,10 +72,7 @@ const updateSupplier = async (id: string, name: string, phone?: string, note?: s
 
 // Delete supplier
 const deleteSupplier = async (id: string) => {
-  const { error } = await supabase
-    .from("suppliers")
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.from("suppliers").delete().eq("id", id);
   if (error) throw error;
 };
 
@@ -91,7 +85,11 @@ function SuppliersPage() {
   const [newPhone, setNewPhone] = useState("");
   const [newNote, setNewNote] = useState("");
 
-  const { data: suppliers = [], isLoading, error } = useQuery({
+  const {
+    data: suppliers = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["suppliers"],
     queryFn: fetchSuppliers,
   });
@@ -109,8 +107,17 @@ function SuppliersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, name, phone, note }: { id: string; name: string; phone?: string; note?: string }) =>
-      updateSupplier(id, name, phone, note),
+    mutationFn: ({
+      id,
+      name,
+      phone,
+      note,
+    }: {
+      id: string;
+      name: string;
+      phone?: string;
+      note?: string;
+    }) => updateSupplier(id, name, phone, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       setIsEditDialogOpen(false);
@@ -131,10 +138,10 @@ function SuppliersPage() {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    addMutation.mutate({ 
-      name: newName.trim(), 
+    addMutation.mutate({
+      name: newName.trim(),
       phone: newPhone.trim() || undefined,
-      note: newNote.trim() || undefined
+      note: newNote.trim() || undefined,
     });
   };
 
@@ -165,15 +172,10 @@ function SuppliersPage() {
 
   return (
     <AppShell>
-      <PageHeader 
-        title="Wauzaji" 
-        description="Udhibiti wa wauzaji na wasambazaji wa bidhaa zako" 
-      />
+      <PageHeader title="Wauzaji" description="Udhibiti wa wauzaji na wasambazaji wa bidhaa zako" />
 
       <div className="flex justify-between items-center mb-4">
-        <div className="text-sm text-muted-foreground">
-          Jumla ya wauzaji: {suppliers.length}
-        </div>
+        <div className="text-sm text-muted-foreground">Jumla ya wauzaji: {suppliers.length}</div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -231,7 +233,9 @@ function SuppliersPage() {
       ) : error ? (
         <div className="text-red-500">Imeshindwa kupakia wauzaji. Jaribu tena.</div>
       ) : suppliers.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">Hakuna wauzaji bado. Ongeza muuzaji kwanza.</div>
+        <div className="text-center py-8 text-muted-foreground">
+          Hakuna wauzaji bado. Ongeza muuzaji kwanza.
+        </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <Table>

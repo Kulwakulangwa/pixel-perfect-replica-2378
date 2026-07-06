@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +32,7 @@ const navItems = [
 ];
 
 type AppShellProps = {
-  children: React.ReactNode;
+  children: ReactNode;
   requireOwner?: boolean;
 };
 
@@ -50,11 +50,13 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !loading) return;
     let isMounted = true;
     const fetchUserRole = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!session) {
           navigate({ to: "/auth" });
           return;
@@ -91,7 +93,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [mounted, navigate]);
+  }, [mounted, loading, navigate]);
 
   // Owner-only redirect
   useEffect(() => {
@@ -114,9 +116,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     );
   }
 
-  const filteredNavItems = navItems.filter(item =>
-    item.roles.includes(userRole as any)
-  );
+  const filteredNavItems = navItems.filter((item) => item.roles.includes(userRole));
 
   return (
     <div className="flex min-h-screen bg-background" suppressHydrationWarning>
@@ -133,7 +133,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transition-transform duration-300",
           "lg:translate-x-0 lg:relative",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex h-16 items-center justify-between px-4 border-b">
@@ -161,9 +161,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
                   to={item.to}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted"
+                    isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                   )}
                   onClick={() => setIsSidebarOpen(false)}
                 >
@@ -208,15 +206,21 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           </Button>
         </header>
 
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   );
 }
 
-export function PageHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>

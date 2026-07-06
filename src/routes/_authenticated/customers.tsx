@@ -17,12 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,9 +54,7 @@ type CustomerPayment = {
 
 // --- Queries ---
 const fetchCustomers = async (): Promise<CustomerBalance[]> => {
-  const { data, error } = await supabase
-    .from("v_customer_balances")
-    .select("*");
+  const { data, error } = await supabase.from("v_customer_balances").select("*");
   if (error) throw error;
   return data || [];
 };
@@ -89,13 +82,16 @@ const fetchCustomerPayments = async (customerId: string): Promise<CustomerPaymen
 
 // --- Mutations ---
 const addCustomer = async (name: string, phone?: string) => {
-  const { error } = await supabase
-    .from("customers")
-    .insert([{ name, phone: phone || null }]);
+  const { error } = await supabase.from("customers").insert([{ name, phone: phone || null }]);
   if (error) throw error;
 };
 
-const recordPayment = async (customerId: string, amount: number, paymentDate: string, note?: string) => {
+const recordPayment = async (
+  customerId: string,
+  amount: number,
+  paymentDate: string,
+  note?: string,
+) => {
   const { error } = await supabase
     .from("customer_payments")
     .insert([{ customer_id: customerId, amount, payment_date: paymentDate, note: note || null }]);
@@ -111,7 +107,11 @@ function CustomersPage() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
-  const { data: customers = [], isLoading, error } = useQuery({
+  const {
+    data: customers = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["customers"],
     queryFn: fetchCustomers,
   });
@@ -129,8 +129,7 @@ function CustomersPage() {
   });
 
   const addCustomerMutation = useMutation({
-    mutationFn: ({ name, phone }: { name: string; phone?: string }) =>
-      addCustomer(name, phone),
+    mutationFn: ({ name, phone }: { name: string; phone?: string }) => addCustomer(name, phone),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       setAddDialogOpen(false);
@@ -140,8 +139,17 @@ function CustomersPage() {
   });
 
   const recordPaymentMutation = useMutation({
-    mutationFn: ({ customerId, amount, paymentDate, note }: { customerId: string; amount: number; paymentDate: string; note?: string }) =>
-      recordPayment(customerId, amount, paymentDate, note),
+    mutationFn: ({
+      customerId,
+      amount,
+      paymentDate,
+      note,
+    }: {
+      customerId: string;
+      amount: number;
+      paymentDate: string;
+      note?: string;
+    }) => recordPayment(customerId, amount, paymentDate, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customerPayments", selectedCustomerId] });
@@ -156,7 +164,10 @@ function CustomersPage() {
   const handleAddCustomer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomerName.trim()) return;
-    addCustomerMutation.mutate({ name: newCustomerName.trim(), phone: newCustomerPhone.trim() || undefined });
+    addCustomerMutation.mutate({
+      name: newCustomerName.trim(),
+      phone: newCustomerPhone.trim() || undefined,
+    });
   };
 
   const handleRecordPayment = (e: React.FormEvent<HTMLFormElement>) => {
@@ -177,16 +188,18 @@ function CustomersPage() {
   };
 
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
+    new Intl.NumberFormat("sw-TZ", {
+      style: "currency",
+      currency: "TZS",
+      minimumFractionDigits: 0,
+    }).format(value);
 
   return (
     <AppShell>
       <PageHeader title="Wateja" description="Orodha ya wateja na mizani yao" />
 
       <div className="flex justify-between items-center mb-4">
-        <div className="text-sm text-muted-foreground">
-          Jumla ya wateja: {customers.length}
-        </div>
+        <div className="text-sm text-muted-foreground">Jumla ya wateja: {customers.length}</div>
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -235,7 +248,9 @@ function CustomersPage() {
       ) : error ? (
         <div className="text-red-500">Imeshindwa kupakia wateja. Jaribu tena.</div>
       ) : customers.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">Hakuna wateja bado. Ongeza mteja kwanza.</div>
+        <div className="text-center py-8 text-muted-foreground">
+          Hakuna wateja bado. Ongeza mteja kwanza.
+        </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <Table>
@@ -256,7 +271,9 @@ function CustomersPage() {
                 >
                   <TableCell className="font-medium">{customer.name}</TableCell>
                   <TableCell>{customer.phone || "-"}</TableCell>
-                  <TableCell className={`text-right font-semibold ${customer.balance > 0 ? "text-red-600" : "text-green-600"}`}>
+                  <TableCell
+                    className={`text-right font-semibold ${customer.balance > 0 ? "text-red-600" : "text-green-600"}`}
+                  >
                     {formatCurrency(customer.balance)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -307,7 +324,9 @@ function CustomersPage() {
                     <TableBody>
                       {sales.map((sale) => (
                         <TableRow key={sale.id}>
-                          <TableCell>{format(new Date(sale.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
+                          <TableCell>
+                            {format(new Date(sale.created_at), "dd/MM/yyyy HH:mm")}
+                          </TableCell>
                           <TableCell className="text-right">{formatCurrency(sale.total)}</TableCell>
                           <TableCell>{sale.status}</TableCell>
                         </TableRow>
@@ -333,8 +352,12 @@ function CustomersPage() {
                     <TableBody>
                       {payments.map((payment) => (
                         <TableRow key={payment.id}>
-                          <TableCell>{format(new Date(payment.payment_date), "dd/MM/yyyy")}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                          <TableCell>
+                            {format(new Date(payment.payment_date), "dd/MM/yyyy")}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(payment.amount)}
+                          </TableCell>
                           <TableCell>{payment.note || "-"}</TableCell>
                         </TableRow>
                       ))}
@@ -368,15 +391,15 @@ function CustomersPage() {
                   </div>
                   <div>
                     <Label htmlFor="note">Maelezo (si lazima)</Label>
-                    <Input
-                      id="note"
-                      name="note"
-                      placeholder="Malipo ya awamu ya pili"
-                    />
+                    <Input id="note" name="note" placeholder="Malipo ya awamu ya pili" />
                   </div>
                   <div className="flex justify-end">
                     <Button type="submit" disabled={recordPaymentMutation.isPending}>
-                      {recordPaymentMutation.isPending ? <Loader2 className="animate-spin" /> : "Rekodi Malipo"}
+                      {recordPaymentMutation.isPending ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        "Rekodi Malipo"
+                      )}
                     </Button>
                   </div>
                 </form>

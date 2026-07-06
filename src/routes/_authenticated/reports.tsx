@@ -29,7 +29,8 @@ export const Route = createFileRoute("/_authenticated/reports")({
   component: ReportsPage,
 });
 
-type ReportType = "daily" | "weekly" | "monthly" | "bestsellers" | "profit" | "expenses" | "netprofit";
+type ReportType =
+  "daily" | "weekly" | "monthly" | "bestsellers" | "profit" | "expenses" | "netprofit";
 
 type Sale = {
   id: string;
@@ -74,7 +75,8 @@ const fetchSaleItems = async (saleIds: string[]) => {
   if (saleIds.length === 0) return [];
   const { data, error } = await supabase
     .from("sale_items")
-    .select(`
+    .select(
+      `
       id,
       sale_id,
       product_id,
@@ -82,7 +84,8 @@ const fetchSaleItems = async (saleIds: string[]) => {
       selling_price,
       unit_cost,
       products ( id, name, buying_price )
-    `)
+    `,
+    )
     .in("sale_id", saleIds);
   if (error) throw error;
   return data as SaleItem[];
@@ -144,8 +147,8 @@ function ReportsPage() {
   });
 
   const saleItemsQuery = useQuery({
-    queryKey: ["saleItems", salesQuery.data?.map(s => s.id)],
-    queryFn: () => fetchSaleItems(salesQuery.data?.map(s => s.id) || []),
+    queryKey: ["saleItems", salesQuery.data?.map((s) => s.id)],
+    queryFn: () => fetchSaleItems(salesQuery.data?.map((s) => s.id) || []),
     enabled: !!salesQuery.data && salesQuery.data.length > 0,
   });
 
@@ -184,7 +187,7 @@ function ReportsPage() {
     // Group sales by period for daily/weekly/monthly
     const groupSales = (groupFn: (date: Date) => string) => {
       const groups: { [key: string]: { revenue: number; cogs: number } } = {};
-      sales.forEach(sale => {
+      sales.forEach((sale) => {
         const key = groupFn(new Date(sale.created_at));
         if (!groups[key]) groups[key] = { revenue: 0, cogs: 0 };
         groups[key].revenue += sale.total;
@@ -204,15 +207,15 @@ function ReportsPage() {
     switch (reportType) {
       case "daily":
         periodLabel = "Tarehe";
-        salesReport = groupSales(d => format(d, "yyyy-MM-dd"));
+        salesReport = groupSales((d) => format(d, "yyyy-MM-dd"));
         break;
       case "weekly":
         periodLabel = "Wiki";
-        salesReport = groupSales(d => `Wiki ${format(d, "w, yyyy")}`);
+        salesReport = groupSales((d) => `Wiki ${format(d, "w, yyyy")}`);
         break;
       case "monthly":
         periodLabel = "Mwezi";
-        salesReport = groupSales(d => format(d, "MMM yyyy"));
+        salesReport = groupSales((d) => format(d, "MMM yyyy"));
         break;
       default:
         break;
@@ -220,8 +223,10 @@ function ReportsPage() {
 
     // Best sellers
     const bestSellers = () => {
-      const productSales: { [productId: string]: { name: string; quantity: number; revenue: number } } = {};
-      items.forEach(item => {
+      const productSales: {
+        [productId: string]: { name: string; quantity: number; revenue: number };
+      } = {};
+      items.forEach((item) => {
         const p = item.products;
         if (!p) return;
         if (!productSales[p.id]) {
@@ -238,7 +243,7 @@ function ReportsPage() {
     // Expenses breakdown
     const expensesBreakdown = () => {
       const byCategory: { [key: string]: number } = {};
-      expenses.forEach(e => {
+      expenses.forEach((e) => {
         byCategory[e.category] = (byCategory[e.category] || 0) + e.amount;
       });
       return { total: totalExpenses, byCategory };
@@ -258,12 +263,22 @@ function ReportsPage() {
   }, [salesQuery.data, saleItemsQuery.data, expensesQuery.data, reportType]);
 
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
+    new Intl.NumberFormat("sw-TZ", {
+      style: "currency",
+      currency: "TZS",
+      minimumFractionDigits: 0,
+    }).format(value);
 
   const renderReport = () => {
-    if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    if (isLoading)
+      return (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      );
     if (error) return <div className="text-red-500">Imeshindwa kupakia ripoti. Jaribu tena.</div>;
-    if (!reportData) return <div className="text-muted-foreground">Hakuna data kwa kipindi hiki.</div>;
+    if (!reportData)
+      return <div className="text-muted-foreground">Hakuna data kwa kipindi hiki.</div>;
 
     switch (reportType) {
       case "daily":
@@ -336,16 +351,22 @@ function ReportsPage() {
               </div>
               <div className="p-4 border rounded-lg bg-green-50">
                 <div className="text-sm text-muted-foreground">Faida ya Jumla (Gross Profit)</div>
-                <div className="text-2xl font-bold text-green-700">{formatCurrency(reportData.grossProfit)}</div>
+                <div className="text-2xl font-bold text-green-700">
+                  {formatCurrency(reportData.grossProfit)}
+                </div>
               </div>
               <div className="p-4 border rounded-lg bg-blue-50">
                 <div className="text-sm text-muted-foreground">Gharama Zote</div>
-                <div className="text-2xl font-bold text-blue-700">{formatCurrency(reportData.totalExpenses)}</div>
+                <div className="text-2xl font-bold text-blue-700">
+                  {formatCurrency(reportData.totalExpenses)}
+                </div>
               </div>
             </div>
             <div className="p-4 border rounded-lg bg-yellow-50">
               <div className="text-sm text-muted-foreground">Faida Halisi (Net Profit)</div>
-              <div className="text-2xl font-bold text-yellow-700">{formatCurrency(reportData.netProfit)}</div>
+              <div className="text-2xl font-bold text-yellow-700">
+                {formatCurrency(reportData.netProfit)}
+              </div>
             </div>
           </div>
         );
@@ -389,15 +410,21 @@ function ReportsPage() {
               </div>
               <div className="p-4 border rounded-lg bg-green-50">
                 <div className="text-sm text-muted-foreground">Faida ya Jumla</div>
-                <div className="text-xl font-bold text-green-700">{formatCurrency(reportData.grossProfit)}</div>
+                <div className="text-xl font-bold text-green-700">
+                  {formatCurrency(reportData.grossProfit)}
+                </div>
               </div>
               <div className="p-4 border rounded-lg bg-blue-50">
                 <div className="text-sm text-muted-foreground">Gharama</div>
-                <div className="text-xl font-bold text-blue-700">{formatCurrency(reportData.totalExpenses)}</div>
+                <div className="text-xl font-bold text-blue-700">
+                  {formatCurrency(reportData.totalExpenses)}
+                </div>
               </div>
               <div className="p-4 border rounded-lg bg-yellow-50">
                 <div className="text-sm text-muted-foreground">Faida Halisi</div>
-                <div className="text-xl font-bold text-yellow-700">{formatCurrency(reportData.netProfit)}</div>
+                <div className="text-xl font-bold text-yellow-700">
+                  {formatCurrency(reportData.netProfit)}
+                </div>
               </div>
             </div>
             <div className="text-sm text-muted-foreground">
@@ -466,9 +493,7 @@ function ReportsPage() {
         </div>
       </div>
 
-      <div className="border rounded-lg p-4">
-        {renderReport()}
-      </div>
+      <div className="border rounded-lg p-4">{renderReport()}</div>
     </AppShell>
   );
 }

@@ -34,7 +34,7 @@ export function useSession() {
     };
   }, []);
 
-  return { session, user: session?.user ?? null as User | null, loading };
+  return { session, user: session?.user ?? (null as User | null), loading };
 }
 
 export function useStaff() {
@@ -54,7 +54,9 @@ export function useStaff() {
     setError(null);
     const { data, error } = await supabase
       .from("staff")
-      .select("id, shop_id, full_name, email, phone, role, can_discount, can_manage_till, is_active")
+      .select(
+        "id, shop_id, full_name, email, phone, role, can_discount, can_manage_till, is_active",
+      )
       .eq("id", session.user.id)
       .maybeSingle();
     if (error) setError(error.message);
@@ -62,7 +64,9 @@ export function useStaff() {
     setLoading(false);
   }, [session?.user?.id, sessionLoading]);
 
-  useEffect(() => { void refetch(); }, [refetch]);
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
 
   return { staff, loading: loading || sessionLoading, error, refetch, session };
 }

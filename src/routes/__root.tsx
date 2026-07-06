@@ -23,7 +23,12 @@ function NotFoundComponent() {
           The page you're looking for doesn't exist.
         </p>
         <div className="mt-6">
-          <a href="/" className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Go home</a>
+          <a
+            href="/"
+            className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Go home
+          </a>
         </div>
       </div>
     </div>
@@ -33,15 +38,30 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => { reportLovableError(error, { boundary: "tanstack_root_error_component" }); }, [error]);
+  useEffect(() => {
+    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+  }, [error]);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight">Something went wrong</h1>
         <p className="mt-2 text-sm text-muted-foreground">Please try again or head back home.</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button onClick={() => { router.invalidate(); reset(); }} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Try again</button>
-          <a href="/" className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent">Go home</a>
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Try again
+          </button>
+          <a
+            href="/"
+            className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+          >
+            Go home
+          </a>
         </div>
       </div>
     </div>
@@ -55,10 +75,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#2f6fed" },
       { title: "Wakuja Shop POS" },
-      { name: "description", content: "Point of sale and shop management for Wakuja Shop \u2014 sales, inventory, credit (deni), reports." },
+      {
+        name: "description",
+        content:
+          "Point of sale and shop management for Wakuja Shop \u2014 sales, inventory, credit (deni), reports.",
+      },
       { name: "author", content: "Wakuja Shop" },
       { property: "og:title", content: "Wakuja Shop POS" },
-      { property: "og:description", content: "Fast point of sale, deni tracking, inventory and reports for Wakuja Shop." },
+      {
+        property: "og:description",
+        content: "Fast point of sale, deni tracking, inventory and reports for Wakuja Shop.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
@@ -72,7 +99,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/favicon.ico" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -84,7 +114,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <head><HeadContent /></head>
+      <head>
+        <HeadContent />
+      </head>
       <body>
         {children}
         <Scripts />

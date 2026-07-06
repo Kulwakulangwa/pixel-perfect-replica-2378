@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -87,7 +87,7 @@ type PendingSale = {
   discount: number;
   total: number;
   customer_id: string | null;
-  payment_method: 'cash' | 'credit';
+  payment_method: "cash" | "credit";
   cashier_id: string;
   shop_id: string;
   receipt_number: string;
@@ -95,8 +95,20 @@ type PendingSale = {
   synced: boolean;
 };
 
+type ReceiptSale = {
+  receipt_number: string;
+  created_at: string;
+  items: CartItem[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  payment_method: "cash" | "credit";
+  synced: boolean;
+  customer?: Customer | null;
+};
+
 // --- Offline queue helpers ---
-const OFFLINE_QUEUE_KEY = 'offline_sales';
+const OFFLINE_QUEUE_KEY = "offline_sales";
 
 async function getOfflineQueue(): Promise<PendingSale[]> {
   const queue = await get(OFFLINE_QUEUE_KEY);
@@ -111,7 +123,7 @@ async function addToOfflineQueue(sale: PendingSale) {
 
 async function removeFromOfflineQueue(id: string) {
   let queue = await getOfflineQueue();
-  queue = queue.filter(s => s.id !== id);
+  queue = queue.filter((s) => s.id !== id);
   await set(OFFLINE_QUEUE_KEY, queue);
 }
 
@@ -121,11 +133,11 @@ function PosPage() {
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit">("cash");
   const [discount, setDiscount] = useState(0);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
-  const [lastSaleReceipt, setLastSaleReceipt] = useState<any>(null);
+  const [lastSaleReceipt, setLastSaleReceipt] = useState<ReceiptSale | null>(null);
   const [offlineCount, setOfflineCount] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncing, setSyncing] = useState(false);
@@ -145,10 +157,7 @@ function PosPage() {
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("v_customer_balances")
-        .select("*")
-        .order("name");
+      const { data, error } = await supabase.from("v_customer_balances").select("*").order("name");
       if (error) throw error;
       return data as Customer[];
     },
@@ -158,7 +167,10 @@ function PosPage() {
   const { data: userData } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
       if (error) throw error;
       return user;
     },
@@ -200,8 +212,8 @@ function PosPage() {
             discount: sale.discount,
             total: sale.total,
             payment_method: sale.payment_method,
-            sale_type: sale.payment_method === 'credit' ? 'credit' : 'cash',
-            status: 'completed',
+            sale_type: sale.payment_method === "credit" ? "credit" : "cash",
+            status: "completed",
             created_at: sale.created_at,
             synced: true,
             lipa_namba_provider: null,
@@ -243,58 +255,68 @@ function PosPage() {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
-  }, [isOnline, syncing]);
+  }, [isOnline, syncing, queryClient]);
 
   // --- Cart helpers ---
   const addToCart = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.product_id === product.id);
+    setCart((prev) => {
+      const existing = prev.find((item) => item.product_id === product.id);
       if (existing) {
         if (existing.quantity >= existing.max_stock) {
           toast.error("Hakuna stock ya kutosha.");
           return prev;
         }
-        return prev.map(item =>
+        return prev.map((item) =>
           item.product_id === product.id
-            ? { ...item, quantity: item.quantity + 1, line_total: (item.quantity + 1) * item.unit_price }
-            : item
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                line_total: (item.quantity + 1) * item.unit_price,
+              }
+            : item,
         );
       }
-      return [...prev, {
-        product_id: product.id,
-        product_name: product.name,
-        unit_price: product.selling_price,
-        quantity: 1,
-        line_total: product.selling_price,
-        max_stock: product.current_stock,
-      }];
+      return [
+        ...prev,
+        {
+          product_id: product.id,
+          product_name: product.name,
+          unit_price: product.selling_price,
+          quantity: 1,
+          line_total: product.selling_price,
+          max_stock: product.current_stock,
+        },
+      ];
     });
   };
 
   const updateQuantity = (productId: string, delta: number) => {
-    setCart(prev =>
-      prev.map(item => {
-        if (item.product_id !== productId) return item;
-        const newQty = item.quantity + delta;
-        if (newQty <= 0) return null;
-        if (newQty > item.max_stock) {
-          toast.error("Hakuna stock ya kutosha.");
-          return item;
-        }
-        return { ...item, quantity: newQty, line_total: newQty * item.unit_price };
-      }).filter(Boolean) as CartItem[]
+    setCart(
+      (prev) =>
+        prev
+          .map((item) => {
+            if (item.product_id !== productId) return item;
+            const newQty = item.quantity + delta;
+            if (newQty <= 0) return null;
+            if (newQty > item.max_stock) {
+              toast.error("Hakuna stock ya kutosha.");
+              return item;
+            }
+            return { ...item, quantity: newQty, line_total: newQty * item.unit_price };
+          })
+          .filter(Boolean) as CartItem[],
     );
   };
 
   const removeItem = (productId: string) => {
-    setCart(prev => prev.filter(item => item.product_id !== productId));
+    setCart((prev) => prev.filter((item) => item.product_id !== productId));
   };
 
   const clearCart = () => {
@@ -313,7 +335,7 @@ function PosPage() {
       toast.error("Hakuna bidhaa kwenye mkokoteni.");
       return;
     }
-    if (paymentMethod === 'credit' && !selectedCustomer) {
+    if (paymentMethod === "credit" && !selectedCustomer) {
       toast.error("Tafadhali chagua mteja kwa mkopo.");
       return;
     }
@@ -321,11 +343,11 @@ function PosPage() {
     setIsCheckingOut(true);
     try {
       const saleId = crypto.randomUUID();
-      const shopId = staffData?.shop_id || '11111111-1111-1111-1111-111111111111';
+      const shopId = staffData?.shop_id || "11111111-1111-1111-1111-111111111111";
       const cashierId = userData?.id;
       if (!cashierId) throw new Error("Hakuna cashier aliyeingia.");
 
-      const receiptNumber = `REC-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+      const receiptNumber = `REC-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
       const saleData = {
         id: saleId,
@@ -337,8 +359,8 @@ function PosPage() {
         discount,
         total,
         payment_method: paymentMethod,
-        sale_type: paymentMethod === 'credit' ? 'credit' : 'cash',
-        status: 'completed',
+        sale_type: paymentMethod === "credit" ? "credit" : "cash",
+        status: "completed",
         created_at: new Date().toISOString(),
         synced: false,
         items: cart,
@@ -355,8 +377,8 @@ function PosPage() {
           discount,
           total,
           payment_method: paymentMethod,
-          sale_type: paymentMethod === 'credit' ? 'credit' : 'cash',
-          status: 'completed',
+          sale_type: paymentMethod === "credit" ? "credit" : "cash",
+          status: "completed",
           created_at: saleData.created_at,
           synced: true,
           lipa_namba_provider: null,
@@ -378,7 +400,11 @@ function PosPage() {
         }
 
         toast.success("Mauzo yamehifadhiwa!");
-        setLastSaleReceipt({ ...saleData, synced: true });
+        setLastSaleReceipt({
+          ...saleData,
+          synced: true,
+          customer: selectedCustomer,
+        });
         setShowReceipt(true);
         clearCart();
       } else {
@@ -386,9 +412,13 @@ function PosPage() {
           ...saleData,
           synced: false,
         } as PendingSale);
-        setOfflineCount(prev => prev + 1);
+        setOfflineCount((prev) => prev + 1);
         toast.warning("Mauzo yamehifadhiwa ndani. Yatasambazwa mtandao ukipatikana.");
-        setLastSaleReceipt({ ...saleData, synced: false });
+        setLastSaleReceipt({
+          ...saleData,
+          synced: false,
+          customer: selectedCustomer,
+        });
         setShowReceipt(true);
         clearCart();
       }
@@ -401,25 +431,26 @@ function PosPage() {
   };
 
   // --- Filter products ---
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()))
+  const filteredProducts = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.sku && p.sku.toLowerCase().includes(search.toLowerCase())),
   );
 
   // --- Keyboard shortcut ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         inputRef.current?.focus();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // --- Receipt preview ---
-  function ReceiptPreview({ sale, onClose }: { sale: any; onClose: () => void }) {
+  function ReceiptPreview({ sale, onClose }: { sale: ReceiptSale; onClose: () => void }) {
     return (
       <Dialog open onOpenChange={onClose}>
         <DialogContent className="max-w-md">
@@ -437,7 +468,9 @@ function PosPage() {
             <div>
               {sale.items.map((item: CartItem) => (
                 <div key={item.product_id} className="flex justify-between py-1">
-                  <span>{item.product_name} x{item.quantity}</span>
+                  <span>
+                    {item.product_name} x{item.quantity}
+                  </span>
                   <span>{formatCurrency(item.line_total)}</span>
                 </div>
               ))}
@@ -459,7 +492,7 @@ function PosPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span>Malipo</span>
-                <span>{sale.payment_method === 'cash' ? 'Fedha' : 'Mkopo'}</span>
+                <span>{sale.payment_method === "cash" ? "Fedha" : "Mkopo"}</span>
               </div>
               {sale.customer && (
                 <div className="flex justify-between text-sm">
@@ -467,7 +500,7 @@ function PosPage() {
                   <span>{sale.customer.name}</span>
                 </div>
               )}
-              {sale.payment_method === 'credit' && sale.customer && (
+              {sale.payment_method === "credit" && sale.customer && (
                 <div className="flex justify-between text-sm text-red-600 font-bold">
                   <span>Malipo yajayo</span>
                   <span>{formatCurrency(sale.customer.balance + sale.total)}</span>
@@ -479,7 +512,9 @@ function PosPage() {
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>Funga</Button>
+            <Button variant="outline" onClick={onClose}>
+              Funga
+            </Button>
             <Button onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" /> Chapisha
             </Button>
@@ -491,7 +526,11 @@ function PosPage() {
 
   // --- Currency formatter ---
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
+    new Intl.NumberFormat("sw-TZ", {
+      style: "currency",
+      currency: "TZS",
+      minimumFractionDigits: 0,
+    }).format(value);
 
   return (
     <AppShell>
@@ -501,13 +540,21 @@ function PosPage() {
         action={
           <div className="flex items-center gap-2">
             {isOnline ? (
-              <Badge variant="outline" className="gap-1"><Wifi className="h-3 w-3" /> Mtandao</Badge>
+              <Badge variant="outline" className="gap-1">
+                <Wifi className="h-3 w-3" /> Mtandao
+              </Badge>
             ) : (
-              <Badge variant="destructive" className="gap-1"><WifiOff className="h-3 w-3" /> Nje ya mtandao</Badge>
+              <Badge variant="destructive" className="gap-1">
+                <WifiOff className="h-3 w-3" /> Nje ya mtandao
+              </Badge>
             )}
             {offlineCount > 0 && (
               <Badge variant="secondary" className="gap-1">
-                {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                {syncing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Check className="h-3 w-3" />
+                )}
                 {offlineCount} zinazosubiri
               </Badge>
             )}
@@ -530,12 +577,16 @@ function PosPage() {
           </div>
           <ScrollArea className="h-[60vh] border rounded-lg">
             {productsLoading ? (
-              <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">Hakuna bidhaa zilizopatikana.</div>
+              <div className="text-center py-8 text-muted-foreground">
+                Hakuna bidhaa zilizopatikana.
+              </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2">
-                {filteredProducts.map(product => (
+                {filteredProducts.map((product) => (
                   <button
                     key={product.id}
                     onClick={() => addToCart(product)}
@@ -543,8 +594,12 @@ function PosPage() {
                     disabled={product.current_stock <= 0}
                   >
                     <div className="font-medium text-sm">{product.name}</div>
-                    <div className="text-xs text-muted-foreground">{formatCurrency(product.selling_price)}</div>
-                    <div className={`text-xs ${product.current_stock <= product.minimum_stock ? 'text-red-500' : 'text-green-600'}`}>
+                    <div className="text-xs text-muted-foreground">
+                      {formatCurrency(product.selling_price)}
+                    </div>
+                    <div
+                      className={`text-xs ${product.current_stock <= product.minimum_stock ? "text-red-500" : "text-green-600"}`}
+                    >
                       Stock: {product.current_stock}
                     </div>
                   </button>
@@ -569,25 +624,47 @@ function PosPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {cart.map(item => (
-                    <div key={item.product_id} className="flex items-center justify-between bg-muted/30 p-2 rounded">
+                  {cart.map((item) => (
+                    <div
+                      key={item.product_id}
+                      className="flex items-center justify-between bg-muted/30 p-2 rounded"
+                    >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{item.product_name}</div>
-                        <div className="text-xs text-muted-foreground">{formatCurrency(item.unit_price)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatCurrency(item.unit_price)}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product_id, -1)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => updateQuantity(item.product_id, -1)}
+                        >
                           <Minus className="h-3 w-3" />
                         </Button>
                         <span className="w-6 text-center text-sm">{item.quantity}</span>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product_id, 1)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => updateQuantity(item.product_id, 1)}
+                        >
                           <Plus className="h-3 w-3" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => removeItem(item.product_id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-red-500"
+                          onClick={() => removeItem(item.product_id)}
+                        >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
-                      <div className="text-sm font-medium ml-2">{formatCurrency(item.line_total)}</div>
+                      <div className="text-sm font-medium ml-2">
+                        {formatCurrency(item.line_total)}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -615,21 +692,28 @@ function PosPage() {
             {/* Checkout controls */}
             <div className="border-t pt-3 space-y-2">
               <div className="flex gap-2">
-                <Select value={paymentMethod} onValueChange={(v: 'cash' | 'credit') => setPaymentMethod(v)}>
+                <Select
+                  value={paymentMethod}
+                  onValueChange={(v: "cash" | "credit") => setPaymentMethod(v)}
+                >
                   <SelectTrigger className="flex-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash"><Wallet className="h-4 w-4 mr-2 inline" /> Fedha</SelectItem>
-                    <SelectItem value="credit"><CreditCard className="h-4 w-4 mr-2 inline" /> Mkopo</SelectItem>
+                    <SelectItem value="cash">
+                      <Wallet className="h-4 w-4 mr-2 inline" /> Fedha
+                    </SelectItem>
+                    <SelectItem value="credit">
+                      <CreditCard className="h-4 w-4 mr-2 inline" /> Mkopo
+                    </SelectItem>
                   </SelectContent>
                 </Select>
 
-                {paymentMethod === 'credit' && (
+                {paymentMethod === "credit" && (
                   <Select
-                    value={selectedCustomer?.id || ''}
+                    value={selectedCustomer?.id || ""}
                     onValueChange={(id) => {
-                      const customer = customers.find(c => c.id === id);
+                      const customer = customers.find((c) => c.id === id);
                       setSelectedCustomer(customer || null);
                     }}
                   >
@@ -637,7 +721,7 @@ function PosPage() {
                       <SelectValue placeholder="Chagua mteja" />
                     </SelectTrigger>
                     <SelectContent>
-                      {customers.map(c => (
+                      {customers.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name} (Salio: {formatCurrency(c.balance)})
                         </SelectItem>
@@ -669,10 +753,14 @@ function PosPage() {
                 <Button
                   className="flex-1"
                   onClick={handleCheckout}
-                  disabled={cart.length === 0 || isCheckingOut || (paymentMethod === 'credit' && !selectedCustomer)}
+                  disabled={
+                    cart.length === 0 ||
+                    isCheckingOut ||
+                    (paymentMethod === "credit" && !selectedCustomer)
+                  }
                 >
                   {isCheckingOut ? <Loader2 className="animate-spin" /> : null}
-                  {isCheckingOut ? 'Inahifadhi...' : 'Maliza Mauzo'}
+                  {isCheckingOut ? "Inahifadhi..." : "Maliza Mauzo"}
                 </Button>
               </div>
             </div>

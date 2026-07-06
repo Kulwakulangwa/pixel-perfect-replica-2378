@@ -5,7 +5,7 @@ export function formatMoney(value: number | string | null | undefined, currency 
 }
 
 export function parseMoney(input: string): number {
-  const n = Number(String(input).replace(/[^0-9.\-]/g, ""));
+  const n = Number(String(input).replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 

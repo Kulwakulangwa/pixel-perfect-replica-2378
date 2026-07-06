@@ -1,4 +1,3 @@
-
 # Wakuja Shop POS — v1 build plan
 
 ## What I'll ship in this pass
@@ -21,6 +20,7 @@ A single responsive PWA on TanStack Start + TypeScript + Tailwind + shadcn, wire
    - Trigger on `auth.users` insert → creates `public.users` row.
 
 2. **App structure** (TanStack Start file-based routing):
+
    ```
    /auth                          — shared phone/email + password login
    /_authenticated/               — owner-only subtree (RBAC guard in beforeLoad)
@@ -64,6 +64,7 @@ A single responsive PWA on TanStack Start + TypeScript + Tailwind + shadcn, wire
 ## What I need from you before starting
 
 Paste these three values (I'll store `VITE_SUPABASE_*` in the project so preview works, and you keep service role for Vercel only):
+
 - `VITE_SUPABASE_URL` — your Supabase project URL
 - `VITE_SUPABASE_PUBLISHABLE_KEY` — the anon/publishable key
 - Confirm: is there a **seed owner user** already in your Supabase Auth, or should the migration seed one shop row and I add a small "first-run bootstrap" that promotes the first signup to owner?

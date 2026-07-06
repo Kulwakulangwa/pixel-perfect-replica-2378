@@ -5,7 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfToday, endOfToday } from "date-fns";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Loader2, TrendingUp, ShoppingBag, CreditCard, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/today")({
@@ -43,7 +50,10 @@ function TodayPage() {
   const { data: user } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
       if (error) throw error;
       return user;
     },
@@ -74,7 +84,8 @@ function TodayPage() {
 
       let query = supabase
         .from("sales")
-        .select(`
+        .select(
+          `
           id,
           receipt_number,
           total,
@@ -83,13 +94,14 @@ function TodayPage() {
           customer_id,
           created_at,
           customers ( name )
-        `)
+        `,
+        )
         .gte("created_at", from)
         .lte("created_at", to)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
 
-      if (staff.role === 'cashier') {
+      if (staff.role === "cashier") {
         query = query.eq("cashier_id", staff.id);
       }
 
@@ -98,20 +110,33 @@ function TodayPage() {
 
       const totalRevenue = sales?.reduce((sum, s) => sum + s.total, 0) || 0;
       const totalSales = sales?.length || 0;
-      const totalCash = sales?.filter(s => s.payment_method === 'cash').reduce((sum, s) => sum + s.total, 0) || 0;
-      const totalCredit = sales?.filter(s => s.payment_method === 'credit').reduce((sum, s) => sum + s.total, 0) || 0;
+      const totalCash =
+        sales?.filter((s) => s.payment_method === "cash").reduce((sum, s) => sum + s.total, 0) || 0;
+      const totalCredit =
+        sales?.filter((s) => s.payment_method === "credit").reduce((sum, s) => sum + s.total, 0) ||
+        0;
       const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
 
       return {
         sales: sales || [],
-        summary: { total_revenue: totalRevenue, total_sales: totalSales, total_cash: totalCash, total_credit: totalCredit, average_sale: averageSale },
+        summary: {
+          total_revenue: totalRevenue,
+          total_sales: totalSales,
+          total_cash: totalCash,
+          total_credit: totalCredit,
+          average_sale: averageSale,
+        },
       };
     },
     enabled: !!staff,
   });
 
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
+    new Intl.NumberFormat("sw-TZ", {
+      style: "currency",
+      currency: "TZS",
+      minimumFractionDigits: 0,
+    }).format(value);
 
   const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
 
@@ -137,31 +162,85 @@ function TodayPage() {
 
   return (
     <AppShell>
-      <PageHeader
-        title="Mauzo ya Leo"
-        description={dateDescription}
-      />
+      <PageHeader title="Mauzo ya Leo" description={dateDescription} />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Jumla ya Mauzo</CardTitle><TrendingUp className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatCurrency(summary.total_revenue)}</div><p className="text-xs text-muted-foreground">{summary.total_sales} mauzo</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Fedha</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">{formatCurrency(summary.total_cash)}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Mkopo</CardTitle><CreditCard className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-blue-600">{formatCurrency(summary.total_credit)}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Wastani wa Mauzo</CardTitle><ShoppingBag className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatCurrency(summary.average_sale)}</div></CardContent></Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Jumla ya Mauzo</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(summary.total_revenue)}</div>
+            <p className="text-xs text-muted-foreground">{summary.total_sales} mauzo</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Fedha</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {formatCurrency(summary.total_cash)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Mkopo</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {formatCurrency(summary.total_credit)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Wastani wa Mauzo</CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(summary.average_sale)}</div>
+          </CardContent>
+        </Card>
       </div>
       <div className="border rounded-lg overflow-hidden">
         <Table>
-          <TableHeader><TableRow><TableHead>Risiti</TableHead><TableHead>Mteja</TableHead><TableHead>Jumla</TableHead><TableHead>Malipo</TableHead><TableHead>Saa</TableHead></TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Risiti</TableHead>
+              <TableHead>Mteja</TableHead>
+              <TableHead>Jumla</TableHead>
+              <TableHead>Malipo</TableHead>
+              <TableHead>Saa</TableHead>
+            </TableRow>
+          </TableHeader>
           <TableBody>
-            {sales.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Hakuna mauzo leo.</TableCell></TableRow> :
-              sales.map(sale => (
+            {sales.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Hakuna mauzo leo.
+                </TableCell>
+              </TableRow>
+            ) : (
+              sales.map((sale) => (
                 <TableRow key={sale.id}>
                   <TableCell className="font-medium">{sale.receipt_number}</TableCell>
                   <TableCell>{sale.customers?.name || "Mteja wa Oda"}</TableCell>
                   <TableCell>{formatCurrency(sale.total)}</TableCell>
-                  <TableCell><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${sale.payment_method === 'cash' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{sale.payment_method === 'cash' ? 'Fedha' : 'Mkopo'}</span></TableCell>
+                  <TableCell>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${sale.payment_method === "cash" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
+                    >
+                      {sale.payment_method === "cash" ? "Fedha" : "Mkopo"}
+                    </span>
+                  </TableCell>
                   <TableCell>{formatTime(sale.created_at)}</TableCell>
                 </TableRow>
               ))
-            }
+            )}
           </TableBody>
         </Table>
       </div>

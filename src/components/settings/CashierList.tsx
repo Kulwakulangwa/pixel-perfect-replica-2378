@@ -56,10 +56,7 @@ export function CashierList() {
 
   const updatePermission = useMutation({
     mutationFn: async ({ id, can_discount }: { id: string; can_discount: boolean }) => {
-      const { error } = await supabase
-        .from("staff")
-        .update({ can_discount })
-        .eq("id", id);
+      const { error } = await supabase.from("staff").update({ can_discount }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -188,9 +185,7 @@ export function CashierList() {
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : cashiers.length === 0 ? (
-        <div className="text-muted-foreground text-center py-4">
-          Hakuna wasimamizi bado.
-        </div>
+        <div className="text-muted-foreground text-center py-4">Hakuna wasimamizi bado.</div>
       ) : (
         <Table>
           <TableHeader>

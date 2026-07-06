@@ -47,10 +47,7 @@ type Expense = {
 
 // --- Fetch expenses (no change) ---
 const fetchExpenses = async (category?: string, fromDate?: string, toDate?: string) => {
-  let query = supabase
-    .from("expenses")
-    .select("*")
-    .order("expense_date", { ascending: false });
+  let query = supabase.from("expenses").select("*").order("expense_date", { ascending: false });
 
   if (category && category !== "all") {
     query = query.eq("category", category);
@@ -69,24 +66,27 @@ const fetchExpenses = async (category?: string, fromDate?: string, toDate?: stri
 
 // --- Add expense (with shop_id and recorded_by) ---
 const addExpense = async (expense: Omit<Expense, "id" | "created_at">) => {
-  const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
+  const { data: shopId, error: shopError } = await supabase.rpc("current_shop_id");
   if (shopError) throw shopError;
   if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!user) throw new Error("Hakuna mtumiaji aliyeingia.");
 
-  const { error } = await supabase
-    .from("expenses")
-    .insert([{
+  const { error } = await supabase.from("expenses").insert([
+    {
       shop_id: shopId,
       recorded_by: user.id,
       category: expense.category,
       amount: expense.amount,
       expense_date: expense.expense_date,
       description: expense.description || null,
-    }]);
+    },
+  ]);
   if (error) throw error;
 };
 
@@ -137,7 +137,11 @@ function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const { data: expenses = [], isLoading, error } = useQuery({
+  const {
+    data: expenses = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["expenses", categoryFilter, fromDate, toDate],
     queryFn: () => fetchExpenses(categoryFilter, fromDate, toDate),
   });
@@ -205,13 +209,17 @@ function ExpensesPage() {
   };
 
   const handleDelete = (id: string, description: string | null) => {
-    if (window.confirm(`Futa gharama "${description || 'isiyo na jina'}"?`)) {
+    if (window.confirm(`Futa gharama "${description || "isiyo na jina"}"?`)) {
       deleteMutation.mutate(id);
     }
   };
 
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
+    new Intl.NumberFormat("sw-TZ", {
+      style: "currency",
+      currency: "TZS",
+      minimumFractionDigits: 0,
+    }).format(value);
 
   const clearFilters = () => {
     setCategoryFilter("all");
@@ -348,7 +356,9 @@ function ExpensesPage() {
               {expenses.map((exp) => (
                 <TableRow key={exp.id}>
                   <TableCell className="capitalize">{exp.category}</TableCell>
-                  <TableCell className="text-right font-medium">{formatCurrency(exp.amount)}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(exp.amount)}
+                  </TableCell>
                   <TableCell>{format(new Date(exp.expense_date), "dd/MM/yyyy")}</TableCell>
                   <TableCell>{exp.description || "-"}</TableCell>
                   <TableCell className="text-right">
@@ -388,9 +398,7 @@ function ExpensesPage() {
                 <Label>Aina</Label>
                 <Select
                   value={editingExpense.category}
-                  onValueChange={(val) =>
-                    setEditingExpense({ ...editingExpense, category: val })
-                  }
+                  onValueChange={(val) => setEditingExpense({ ...editingExpense, category: val })}
                 >
                   <SelectTrigger>
                     <SelectValue />

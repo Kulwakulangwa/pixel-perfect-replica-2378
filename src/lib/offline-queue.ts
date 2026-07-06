@@ -32,7 +32,9 @@ export type PendingSale = {
 
 const KEY_PREFIX = "wakuja:pending:";
 
-export function makeClientRef() { return newClientRef(); }
+export function makeClientRef() {
+  return newClientRef();
+}
 
 export async function queueSale(sale: PendingSale) {
   await set(KEY_PREFIX + sale.client_ref, sale);
@@ -83,7 +85,11 @@ export async function syncPendingSales(): Promise<SyncResult> {
         .single();
       if (e1) {
         // duplicate client_ref = already synced; drop from queue
-        if (e1.code === "23505") { await removeFromQueue(sale.client_ref); synced++; continue; }
+        if (e1.code === "23505") {
+          await removeFromQueue(sale.client_ref);
+          synced++;
+          continue;
+        }
         throw e1;
       }
       const itemsPayload = sale.items.map((it) => ({
@@ -119,11 +125,17 @@ export async function triggerSync() {
 
 export function startBackgroundSync() {
   if (typeof window === "undefined") return () => {};
-  const onOnline = () => { void triggerSync(); };
-  const onFocus = () => { void triggerSync(); };
+  const onOnline = () => {
+    void triggerSync();
+  };
+  const onFocus = () => {
+    void triggerSync();
+  };
   window.addEventListener("online", onOnline);
   window.addEventListener("focus", onFocus);
-  const interval = window.setInterval(() => { void triggerSync(); }, 30_000);
+  const interval = window.setInterval(() => {
+    void triggerSync();
+  }, 30_000);
   void triggerSync();
   return () => {
     window.removeEventListener("online", onOnline);
