@@ -42,8 +42,15 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userRole, setUserRole] = useState<"owner" | "cashier">("cashier");
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // --- Hydration safety: only render dynamic content after mount ---
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     let isMounted = true;
     const fetchUserRole = async () => {
       try {
@@ -78,14 +85,15 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         setUserRole("cashier");
         setLoading(false);
       }
-    }, 3000);
+    }, 2000);
     fetchUserRole();
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [navigate]);
+  }, [mounted, navigate]);
 
+  // Owner-only redirect
   useEffect(() => {
     if (!loading && userRole === "cashier" && requireOwner) {
       navigate({ to: "/pos" });
@@ -97,7 +105,8 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     navigate({ to: "/auth" });
   };
 
-  if (loading) {
+  // --- Before hydration, show a spinner (server & client match) ---
+  if (!mounted || loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -110,7 +119,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   );
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background" suppressHydrationWarning>
       {/* Mobile overlay */}
       {isSidebarOpen && (
         <div
