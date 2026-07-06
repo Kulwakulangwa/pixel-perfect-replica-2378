@@ -1,13 +1,31 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-export const Route = createFileRoute("/_authenticated/")({
-  component: () => {
-    // TEMPORARY: Show a debug page so we can see if routing works
-    return (
-      <div className="p-8">
-        <h1 className="text-2xl">Authenticated Root – Debug</h1>
-        <p>If you see this, the _authenticated layout works.</p>
-      </div>
-    );
-  },
-});
+beforeLoad: async () => {
+  console.log('>> _authenticated/index.tsx beforeLoad');
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log('Session:', session);
+    if (!session) {
+      console.log('No session, redirect to /auth');
+      throw redirect({ to: "/auth" });
+    }
+    const { data: staff, error } = await supabase
+      .from("staff")
+      .select("role")
+      .eq("id", session.user.id)
+      .maybeSingle();
+    console.log('Staff:', staff, 'Error:', error);
+    if (error || !staff) {
+      console.log('No staff or error, redirect to /pos');
+      throw redirect({ to: "/pos" });
+    }
+    if (staff.role === "owner") {
+      console.log('Owner, redirect to /dashboard');
+      throw redirect({ to: "/dashboard" });
+    } else {
+      console.log('Cashier, redirect to /pos');
+      throw redirect({ to: "/pos" });
+    }
+  } catch (err) {
+    console.log('Error in beforeLoad, redirect to /auth:', err);
+    throw redirect({ to: "/auth" });
+  }
+},
