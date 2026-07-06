@@ -60,14 +60,27 @@ const fetchExpenses = async (category?: string, fromDate?: string, toDate?: stri
 };
 
 const addExpense = async (expense: Omit<Expense, "id" | "created_at">) => {
-  // Get the current shop_id
+  // 1. Get the current shop_id
   const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
   if (shopError) throw shopError;
   if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
 
+  // 2. Get the current user ID
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user) throw new Error("Hakuna mtumiaji aliyeingia.");
+
+  // 3. Insert with all required fields
   const { error } = await supabase
     .from("expenses")
-    .insert([{ ...expense, shop_id: shopId }]);
+    .insert([{
+      shop_id: shopId,
+      recorded_by: user.id,
+      category: expense.category,
+      amount: expense.amount,
+      expense_date: expense.expense_date,
+      description: expense.description || null,
+    }]);
   if (error) throw error;
 };
 
