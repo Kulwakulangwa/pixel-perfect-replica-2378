@@ -60,7 +60,14 @@ const fetchExpenses = async (category?: string, fromDate?: string, toDate?: stri
 };
 
 const addExpense = async (expense: Omit<Expense, "id" | "created_at">) => {
-  const { error } = await supabase.from("expenses").insert([expense]);
+  // Get the current shop_id
+  const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
+  if (shopError) throw shopError;
+  if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
+
+  const { error } = await supabase
+    .from("expenses")
+    .insert([{ ...expense, shop_id: shopId }]);
   if (error) throw error;
 };
 
