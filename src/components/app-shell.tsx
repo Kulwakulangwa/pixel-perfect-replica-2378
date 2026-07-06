@@ -40,49 +40,57 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const navigate = useNavigate();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [userRole, setUserRole] = useState<"owner" | "cashier" | null>(null);
+  const [userRole, setUserRole] = useState<"owner" | "cashier">("cashier");
   const [loading, setLoading] = useState(true);
-  const [hydrated, setHydrated] = useState(false);
-
-  // Mark hydration complete after mount
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchUserRole = async () => {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
+        const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           navigate({ to: "/auth" });
           return;
         }
 
-        const { data: staff, error: staffError } = await supabase
+        const { data: staff, error } = await supabase
           .from("staff")
           .select("role")
           .eq("id", session.user.id)
           .maybeSingle();
 
-        if (staffError) {
-          console.warn("Staff fetch error, defaulting to cashier:", staffError);
-          setUserRole("cashier");
+        if (error) {
+          console.warn("Staff fetch error, defaulting to cashier:", error);
+          if (isMounted) setUserRole("cashier");
         } else if (staff) {
-          setUserRole(staff.role as "owner" | "cashier");
+          if (isMounted) setUserRole(staff.role as "owner" | "cashier");
         } else {
-          setUserRole("cashier");
+          if (isMounted) setUserRole("cashier");
         }
-
-        setLoading(false);
       } catch (err) {
-        console.error("Error in fetchUserRole:", err);
-        setUserRole("cashier");
-        setLoading(false);
+        console.error("Error fetching user role:", err);
+        if (isMounted) setUserRole("cashier");
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
 
+    // Force a timeout to avoid infinite loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn("Role fetch timed out, defaulting to cashier");
+        setUserRole("cashier");
+        setLoading(false);
+      }
+    }, 3000);
+
     fetchUserRole();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [navigate]);
 
   // Owner-only redirect
@@ -97,8 +105,8 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     navigate({ to: "/auth" });
   };
 
-  // Don't render sidebar until hydrated to avoid mismatch
-  if (!hydrated || loading) {
+  // Always render something after loading – no hydration mismatch
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -209,6 +217,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   );
 }
 
+// PageHeader component (exported)
 export function PageHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
