@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useRef } from "react";
+import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,10 +45,18 @@ type Staff = {
   can_discount: boolean;
 };
 
+// --- Fetch shop settings using RPC to get current shop ID ---
 const fetchShopSettings = async (): Promise<ShopSettings> => {
+  // Get the current shop ID
+  const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
+  if (shopError) throw shopError;
+  if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
+
+  // Now fetch settings for that shop
   const { data, error } = await supabase
     .from("shops")
     .select("id, name, logo_url, receipt_footer")
+    .eq('id', shopId)
     .single();
   if (error) throw error;
   return data;
@@ -102,7 +111,7 @@ function SettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [addingCashier, setAddingCashier] = useState(false);
 
-  const { data: shop } = useQuery({
+  const { data: shop, isLoading: shopLoading, error: shopError } = useQuery({
     queryKey: ["shopSettings"],
     queryFn: fetchShopSettings,
     onSuccess: (data) => {
@@ -112,37 +121,58 @@ function SettingsPage() {
         setReceiptFooter(data.receipt_footer || "");
       }
     },
+    onError: (err) => {
+      toast.error("Imeshindwa kupakia maelezo ya duka: " + (err as Error).message);
+    }
   });
 
   const { data: cashiers = [], isLoading: cashiersLoading } = useQuery({
     queryKey: ["cashiers"],
     queryFn: fetchCashiers,
+    onError: (err) => {
+      toast.error("Imeshindwa kupakia orodha ya wasimamizi: " + (err as Error).message);
+    }
   });
 
   const updateShopMutation = useMutation({
     mutationFn: updateShopSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shopSettings"] });
+      toast.success("Maelezo ya duka yamehifadhiwa!");
     },
+    onError: (err) => {
+      toast.error("Imeshindwa kuhifadhi: " + (err as Error).message);
+    }
   });
 
   const updatePermissionMutation = useMutation({
     mutationFn: updateCashierPermission,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cashiers"] });
+      toast.success("Ruhusa imebadilishwa!");
     },
+    onError: (err) => {
+      toast.error("Imeshindwa kubadilisha ruhusa: " + (err as Error).message);
+    }
   });
 
   const deleteCashierMutation = useMutation({
     mutationFn: deleteCashier,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cashiers"] });
+      toast.success("Cashier imefutwa!");
     },
+    onError: (err) => {
+      toast.error("Imeshindwa kufuta: " + (err as Error).message);
+    }
   });
 
   const handleShopUpdate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shopId) return;
+    if (!shopId) {
+      toast.error("Duka halijapatikana.");
+      return;
+    }
     updateShopMutation.mutate({
       id: shopId,
       name: shopName,
@@ -152,29 +182,42 @@ function SettingsPage() {
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !shopId) return;
+    if (!file || !shopId) {
+      toast.error("Chagua picha kwanza.");
+      return;
+    }
 
     setUploadingLogo(true);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${shopId}/logo.${fileExt}`;
+      
+      // Upload to public bucket
       const { error: uploadError } = await supabase.storage
         .from('shop-media')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file, { 
+          upsert: true,
+          cacheControl: '3600',
+          contentType: file.type
+        });
       if (uploadError) throw uploadError;
 
+      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('shop-media')
         .getPublicUrl(fileName);
       
+      // Update shop record with the URL
       await updateShopSettings({
         id: shopId,
         logo_url: publicUrl,
       });
+      
       queryClient.invalidateQueries({ queryKey: ["shopSettings"] });
+      toast.success("Logo imepakiwa!");
     } catch (error) {
       console.error("Error uploading logo:", error);
-      alert("Imeshindwa kupakia picha. Jaribu tena.");
+      toast.error("Imeshindwa kupakia picha: " + (error as Error).message);
     } finally {
       setUploadingLogo(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -183,11 +226,13 @@ function SettingsPage() {
 
   const handleAddCashier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCashierEmail || !newCashierPassword || !newCashierName) return;
+    if (!newCashierEmail || !newCashierPassword || !newCashierName) {
+      toast.error("Tafadhali jaza sehemu zote.");
+      return;
+    }
 
     setAddingCashier(true);
     try {
-      // Call the Edge Function instead of the RPC
       const { data, error } = await supabase.functions.invoke('create-cashier', {
         body: {
           email: newCashierEmail,
@@ -196,17 +241,16 @@ function SettingsPage() {
         },
       });
       if (error) throw error;
-
-      // Success
+      
       queryClient.invalidateQueries({ queryKey: ["cashiers"] });
       setIsAddDialogOpen(false);
       setNewCashierEmail("");
       setNewCashierPassword("");
       setNewCashierName("");
-      alert("Cashier imeongezwa kikamilifu!");
+      toast.success("Cashier imeongezwa kikamilifu!");
     } catch (error) {
       console.error("Error creating cashier:", error);
-      alert("Imeshindwa kuunda akaunti. Jaribu tena.");
+      toast.error("Imeshindwa kuunda akaunti. Jaribu tena.");
     } finally {
       setAddingCashier(false);
     }
@@ -216,8 +260,8 @@ function SettingsPage() {
     updatePermissionMutation.mutate({ staffId, can_discount: !current });
   };
 
-  const handleDeleteCashier = (staffId: string) => {
-    if (window.confirm("Je, una uhakika unataka kufuta cashier huyu?")) {
+  const handleDeleteCashier = (staffId: string, name: string) => {
+    if (window.confirm(`Je, una uhakika unataka kufuta cashier "${name}"?`)) {
       deleteCashierMutation.mutate(staffId);
     }
   };
@@ -227,6 +271,7 @@ function SettingsPage() {
       <PageHeader title="Mipangilio" description="Dhibiti mazingira ya duka lako" />
 
       <div className="space-y-8">
+        {/* Shop Settings */}
         <div className="border rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-4">Maelezo ya Duka</h3>
           <form onSubmit={handleShopUpdate} className="space-y-4">
@@ -250,6 +295,7 @@ function SettingsPage() {
                 placeholder="Asante kwa kununua! ..."
                 rows={3}
               />
+              <p className="text-xs text-muted-foreground mt-1">Maudhui haya yataonekana chini ya kila risiti.</p>
             </div>
             <Button type="submit" disabled={updateShopMutation.isPending}>
               {updateShopMutation.isPending ? <Loader2 className="animate-spin" /> : "Hifadhi Mabadiliko"}
@@ -257,6 +303,7 @@ function SettingsPage() {
           </form>
         </div>
 
+        {/* Logo Upload */}
         <div className="border rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-4">Picha ya Duka (Logo)</h3>
           <div className="flex items-center gap-4">
@@ -266,6 +313,7 @@ function SettingsPage() {
                   src={shop.logo_url}
                   alt="Logo"
                   className="w-20 h-20 object-contain border rounded"
+                  onError={(e) => (e.currentTarget.src = '')}
                 />
               </div>
             ) : (
@@ -289,10 +337,12 @@ function SettingsPage() {
                 {uploadingLogo ? <Loader2 className="animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                 {uploadingLogo ? "Inapakia..." : "Pakia Logo"}
               </Button>
+              <p className="text-xs text-muted-foreground mt-1">Saizi inayopendekezwa: 200x200px</p>
             </div>
           </div>
         </div>
 
+        {/* Cashier Management */}
         <div className="border rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Wasimamizi (Cashiers)</h3>
@@ -382,7 +432,7 @@ function SettingsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteCashier(cashier.id)}
+                        onClick={() => handleDeleteCashier(cashier.id, cashier.full_name || cashier.email)}
                         className="text-red-500 hover:text-red-700"
                         disabled={deleteCashierMutation.isPending}
                       >
