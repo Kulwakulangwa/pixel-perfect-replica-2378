@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Try both VITE_* and plain – works regardless of how env vars are named
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.SUPABASE_PUBLISHABLE_KEY
+// 🔴 TEMPORARY HARDCODE – REMOVE AFTER TESTING
+const supabaseUrl = 'https://ejapxqqtvuouqggdbmxx.supabase.co'
+const supabaseAnonKey = 'sb_publishable_nai6hzsVBhNW5tTAWJpS5Q_z85IOVK2'
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase env vars. Check Vercel dashboard.')
-  throw new Error('Supabase client missing URL or key.')
+  throw new Error('Missing Supabase env vars')
 }
 
+console.log('Supabase client initialized with URL:', supabaseUrl)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
