@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,11 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Store, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
-  ssr: false,
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (data.user) throw redirect({ to: "/" });
-  },
   component: AuthPage,
 });
 
@@ -23,9 +18,24 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkSession = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data.user) {
+          navigate({ to: "/" });
+        }
+      } catch {
+        // Ignore session check errors and keep the login form visible.
+      }
+    };
+
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") navigate({ to: "/" });
     });
+
+    void checkSession();
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
 
