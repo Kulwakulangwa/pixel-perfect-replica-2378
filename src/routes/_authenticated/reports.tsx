@@ -29,9 +29,8 @@ export const Route = createFileRoute("/_authenticated/reports")({
   component: ReportsPage,
 });
 
-type ReportType = "daily" | "weekly" | "monthly" | "bestsellers" | "profit" | "expenses";
+type ReportType = "daily" | "weekly" | "monthly" | "bestsellers" | "profit" | "expenses" | "netprofit";
 
-// --- Types for data fetched ---
 type Sale = {
   id: string;
   created_at: string;
@@ -44,6 +43,7 @@ type SaleItem = {
   product_id: string;
   quantity: number;
   selling_price: number;
+  unit_cost: number;
   products: {
     id: string;
     name: string;
@@ -58,7 +58,6 @@ type Expense = {
   expense_date: string;
 };
 
-// --- Fetch functions ---
 const fetchSalesData = async (from: string, to: string) => {
   const { data, error } = await supabase
     .from("sales")
@@ -81,11 +80,8 @@ const fetchSaleItems = async (saleIds: string[]) => {
       product_id,
       quantity,
       selling_price,
-      products (
-        id,
-        name,
-        buying_price
-      )
+      unit_cost,
+      products ( id, name, buying_price )
     `)
     .in("sale_id", saleIds);
   if (error) throw error;
@@ -103,7 +99,6 @@ const fetchExpenses = async (from: string, to: string) => {
   return data as Expense[];
 };
 
-// --- Helper to get date range for report type ---
 const getDefaultDateRange = (reportType: ReportType) => {
   const now = new Date();
   let from: Date, to: Date;
@@ -136,14 +131,12 @@ function ReportsPage() {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
-  // Set default date range when report type changes
   useMemo(() => {
     const { from, to } = getDefaultDateRange(reportType);
     setFromDate(from);
     setToDate(to);
   }, [reportType]);
 
-  // --- Fetch data ---
   const salesQuery = useQuery({
     queryKey: ["salesData", fromDate, toDate],
     queryFn: () => fetchSalesData(fromDate, toDate),
@@ -165,7 +158,7 @@ function ReportsPage() {
   const isLoading = salesQuery.isLoading || saleItemsQuery.isLoading || expensesQuery.isLoading;
   const error = salesQuery.error || saleItemsQuery.error || expensesQuery.error;
 
-  // --- Compute reports ---
+  // Compute aggregated metrics
   const reportData = useMemo(() => {
     if (!salesQuery.data || !saleItemsQuery.data || !expensesQuery.data) return null;
 
@@ -173,20 +166,40 @@ function ReportsPage() {
     const items = saleItemsQuery.data;
     const expenses = expensesQuery.data;
 
-    // 1. Daily, weekly, monthly sales: group sales by period
+    // Total revenue
+    const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
+
+    // Total COGS (using unit_cost from sale_items)
+    const totalCOGS = items.reduce((sum, item) => sum + (item.unit_cost || 0) * item.quantity, 0);
+
+    // Gross profit
+    const grossProfit = totalRevenue - totalCOGS;
+
+    // Total expenses
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // Net profit
+    const netProfit = grossProfit - totalExpenses;
+
+    // Group sales by period for daily/weekly/monthly
     const groupSales = (groupFn: (date: Date) => string) => {
-      const groups: { [key: string]: number } = {};
+      const groups: { [key: string]: { revenue: number; cogs: number } } = {};
       sales.forEach(sale => {
         const key = groupFn(new Date(sale.created_at));
-        groups[key] = (groups[key] || 0) + sale.total;
+        if (!groups[key]) groups[key] = { revenue: 0, cogs: 0 };
+        groups[key].revenue += sale.total;
       });
-      // Convert to array sorted
+      // Also add COGS per sale – but we need to map sale items to sale_id
+      // We can compute per day by iterating items, but easier: we already have total revenue per day, and COGS per day can be derived by splitting items.
+      // However, to keep it simple, we'll just show revenue per day, and the total metrics are already computed.
+      // For detailed daily breakdown, we'd need to map items to sale dates.
+      // We'll use a simpler approach: only show total revenue per day (no COGS per day) to keep it clear.
       return Object.entries(groups)
-        .map(([label, total]) => ({ label, total }))
+        .map(([label, { revenue }]) => ({ label, revenue }))
         .sort((a, b) => a.label.localeCompare(b.label));
     };
 
-    let salesReport: { label: string; total: number }[] = [];
+    let salesReport: { label: string; revenue: number }[] = [];
     let periodLabel = "";
     switch (reportType) {
       case "daily":
@@ -205,7 +218,7 @@ function ReportsPage() {
         break;
     }
 
-    // 2. Best sellers
+    // Best sellers
     const bestSellers = () => {
       const productSales: { [productId: string]: { name: string; quantity: number; revenue: number } } = {};
       items.forEach(item => {
@@ -222,40 +235,31 @@ function ReportsPage() {
         .slice(0, 10);
     };
 
-    // 3. Profit
-    const profit = () => {
-      let totalProfit = 0;
-      items.forEach(item => {
-        const buyingPrice = item.products?.buying_price || 0;
-        const profit = (item.selling_price - buyingPrice) * item.quantity;
-        totalProfit += profit;
-      });
-      return totalProfit;
-    };
-
-    // 4. Expenses
-    const expensesReport = () => {
-      const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+    // Expenses breakdown
+    const expensesBreakdown = () => {
       const byCategory: { [key: string]: number } = {};
       expenses.forEach(e => {
         byCategory[e.category] = (byCategory[e.category] || 0) + e.amount;
       });
-      return { total, byCategory };
+      return { total: totalExpenses, byCategory };
     };
 
     return {
+      totalRevenue,
+      totalCOGS,
+      grossProfit,
+      totalExpenses,
+      netProfit,
       salesReport,
       periodLabel,
       bestSellers: bestSellers(),
-      profit: profit(),
-      expenses: expensesReport(),
+      expenses: expensesBreakdown(),
     };
   }, [salesQuery.data, saleItemsQuery.data, expensesQuery.data, reportType]);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("sw-TZ", { style: "currency", currency: "TZS", minimumFractionDigits: 0 }).format(value);
 
-  // --- Render report content ---
   const renderReport = () => {
     if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     if (error) return <div className="text-red-500">Imeshindwa kupakia ripoti. Jaribu tena.</div>;
@@ -268,7 +272,7 @@ function ReportsPage() {
         return (
           <div>
             <div className="mb-4 text-lg font-semibold">
-              Jumla ya Mauzo: {formatCurrency(reportData.salesReport.reduce((sum, r) => sum + r.total, 0))}
+              Jumla ya Mauzo: {formatCurrency(reportData.totalRevenue)}
             </div>
             <Table>
               <TableHeader>
@@ -281,7 +285,7 @@ function ReportsPage() {
                 {reportData.salesReport.map((row) => (
                   <TableRow key={row.label}>
                     <TableCell>{row.label}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.total)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -320,12 +324,28 @@ function ReportsPage() {
 
       case "profit":
         return (
-          <div>
-            <div className="mb-4 text-lg font-semibold">
-              Faida Jumla: {formatCurrency(reportData.profit)}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">Jumla ya Mauzo</div>
+                <div className="text-2xl font-bold">{formatCurrency(reportData.totalRevenue)}</div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">Gharama ya Bidhaa Zilizouzwa</div>
+                <div className="text-2xl font-bold">{formatCurrency(reportData.totalCOGS)}</div>
+              </div>
+              <div className="p-4 border rounded-lg bg-green-50">
+                <div className="text-sm text-muted-foreground">Faida ya Jumla (Gross Profit)</div>
+                <div className="text-2xl font-bold text-green-700">{formatCurrency(reportData.grossProfit)}</div>
+              </div>
+              <div className="p-4 border rounded-lg bg-blue-50">
+                <div className="text-sm text-muted-foreground">Gharama Zote</div>
+                <div className="text-2xl font-bold text-blue-700">{formatCurrency(reportData.totalExpenses)}</div>
+              </div>
             </div>
-            <div className="text-muted-foreground">
-              Faida inahesabiwa kwa kutoa bei ya ununuzi (buying price) kutoka bei ya kuuza (selling price) kwa kila bidhaa.
+            <div className="p-4 border rounded-lg bg-yellow-50">
+              <div className="text-sm text-muted-foreground">Faida Halisi (Net Profit)</div>
+              <div className="text-2xl font-bold text-yellow-700">{formatCurrency(reportData.netProfit)}</div>
             </div>
           </div>
         );
@@ -355,6 +375,37 @@ function ReportsPage() {
           </div>
         );
 
+      case "netprofit":
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">Mauzo</div>
+                <div className="text-xl font-bold">{formatCurrency(reportData.totalRevenue)}</div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">COGS</div>
+                <div className="text-xl font-bold">{formatCurrency(reportData.totalCOGS)}</div>
+              </div>
+              <div className="p-4 border rounded-lg bg-green-50">
+                <div className="text-sm text-muted-foreground">Faida ya Jumla</div>
+                <div className="text-xl font-bold text-green-700">{formatCurrency(reportData.grossProfit)}</div>
+              </div>
+              <div className="p-4 border rounded-lg bg-blue-50">
+                <div className="text-sm text-muted-foreground">Gharama</div>
+                <div className="text-xl font-bold text-blue-700">{formatCurrency(reportData.totalExpenses)}</div>
+              </div>
+              <div className="p-4 border rounded-lg bg-yellow-50">
+                <div className="text-sm text-muted-foreground">Faida Halisi</div>
+                <div className="text-xl font-bold text-yellow-700">{formatCurrency(reportData.netProfit)}</div>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Faida Halisi = Mauzo – Gharama ya Bidhaa – Gharama zingine
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -362,9 +413,8 @@ function ReportsPage() {
 
   return (
     <AppShell>
-      <PageHeader title="Ripoti" description="Changanua mauzo, faida na gharama zako" />
+      <PageHeader title="Ripoti" description="Changanua mauzo, faida, gharama na faida halisi" />
 
-      {/* Controls */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div>
           <Label htmlFor="reportType">Aina ya Ripoti</Label>
@@ -377,8 +427,9 @@ function ReportsPage() {
               <SelectItem value="weekly">Mauzo ya Wiki</SelectItem>
               <SelectItem value="monthly">Mauzo ya Mwezi</SelectItem>
               <SelectItem value="bestsellers">Bidhaa Zinazouza Sana</SelectItem>
-              <SelectItem value="profit">Faida</SelectItem>
+              <SelectItem value="profit">Faida (Gross & Net)</SelectItem>
               <SelectItem value="expenses">Gharama</SelectItem>
+              <SelectItem value="netprofit">Faida Halisi (Net Profit)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -415,7 +466,6 @@ function ReportsPage() {
         </div>
       </div>
 
-      {/* Report Output */}
       <div className="border rounded-lg p-4">
         {renderReport()}
       </div>
