@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfToday, endOfToday } from "date-fns";
+import { useEffect } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -40,7 +41,6 @@ const fetchTodaySales = async (): Promise<{ sales: TodaySale[]; summary: TodaySu
   const from = startOfToday().toISOString();
   const to = endOfToday().toISOString();
 
-  // Fetch sales for today
   const { data: sales, error: salesError } = await supabase
     .from("sales")
     .select(`
@@ -60,7 +60,6 @@ const fetchTodaySales = async (): Promise<{ sales: TodaySale[]; summary: TodaySu
 
   if (salesError) throw salesError;
 
-  // Compute summary
   const totalRevenue = sales?.reduce((sum, s) => sum + s.total, 0) || 0;
   const totalSales = sales?.length || 0;
   const totalCash = sales?.filter(s => s.payment_method === 'cash').reduce((sum, s) => sum + s.total, 0) || 0;
@@ -80,9 +79,45 @@ const fetchTodaySales = async (): Promise<{ sales: TodaySale[]; summary: TodaySu
 };
 
 function DashboardPage() {
+  const navigate = useNavigate();
+
+  // --- Get current user and role ---
+  const { data: user } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      return user;
+    },
+  });
+
+  const { data: staff, isLoading: staffLoading } = useQuery({
+    queryKey: ["currentStaffRole"],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("staff")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Redirect cashiers to POS
+  useEffect(() => {
+    if (staff?.role === 'cashier') {
+      navigate({ to: "/pos", replace: true });
+    }
+  }, [staff, navigate]);
+
+  // --- Sales data (only if owner) ---
   const { data, isLoading, error } = useQuery({
     queryKey: ["todaySales"],
     queryFn: fetchTodaySales,
+    enabled: staff?.role === 'owner', // only fetch if owner
   });
 
   const formatCurrency = (value: number) =>
@@ -90,7 +125,8 @@ function DashboardPage() {
 
   const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
 
-  if (isLoading) {
+  // Show loading while checking role
+  if (staffLoading || isLoading) {
     return (
       <AppShell>
         <div className="flex justify-center items-center h-64">
@@ -98,6 +134,11 @@ function DashboardPage() {
         </div>
       </AppShell>
     );
+  }
+
+  // If cashier, they'll be redirected, but just in case show nothing
+  if (staff?.role === 'cashier') {
+    return null; // will redirect
   }
 
   if (error) {
