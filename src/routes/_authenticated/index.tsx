@@ -8,23 +8,20 @@ export const Route = createFileRoute("/_authenticated/")({
     if (!session) {
       throw redirect({ to: "/auth" });
     }
-
     const { data: staff, error } = await supabase
       .from("staff")
       .select("role")
       .eq("id", session.user.id)
       .maybeSingle();
-
     if (error || !staff) {
       // Default to cashier if no staff record
       throw redirect({ to: "/pos" });
     }
-
     if (staff.role === "owner") {
       throw redirect({ to: "/dashboard" });
     } else {
       throw redirect({ to: "/pos" });
     }
   },
-  component: () => null, // Never rendered due to redirect
+  component: () => null,
 });
