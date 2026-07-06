@@ -9,7 +9,6 @@ export const Route = createFileRoute("/_authenticated/")({
       throw redirect({ to: "/auth" });
     }
 
-    // Get user role
     const { data: staff, error } = await supabase
       .from("staff")
       .select("role")
@@ -17,7 +16,7 @@ export const Route = createFileRoute("/_authenticated/")({
       .maybeSingle();
 
     if (error || !staff) {
-      // Default to cashier if error or no staff record
+      // Default to cashier if no staff record
       throw redirect({ to: "/pos" });
     }
 
@@ -27,5 +26,5 @@ export const Route = createFileRoute("/_authenticated/")({
       throw redirect({ to: "/pos" });
     }
   },
-  component: () => null, // never rendered because of redirect
+  component: () => null, // Never rendered due to redirect
 });
