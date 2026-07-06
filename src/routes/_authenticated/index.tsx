@@ -26,5 +26,5 @@ export const Route = createFileRoute("/_authenticated/")({
       throw redirect({ to: "/auth" });
     }
   },
-  component: () => null, // never rendered due to redirect
+  component: () => null, // never rendered
 });
