@@ -32,9 +32,11 @@ type Supplier = {
   id: string;
   name: string;
   phone: string | null;
+  note: string | null;
   created_at: string;
 };
 
+// Fetch all suppliers for the current shop
 const fetchSuppliers = async (): Promise<Supplier[]> => {
   const { data, error } = await supabase
     .from("suppliers")
@@ -44,21 +46,34 @@ const fetchSuppliers = async (): Promise<Supplier[]> => {
   return data || [];
 };
 
-const addSupplier = async (name: string, phone?: string) => {
+// Add supplier with current shop_id
+const addSupplier = async (name: string, phone?: string, note?: string) => {
+  // Get current shop_id
+  const { data: shopId, error: shopError } = await supabase.rpc('current_shop_id');
+  if (shopError) throw shopError;
+  if (!shopId) throw new Error("Hakuna duka lililopatikana kwa mtumiaji huyu.");
+
   const { error } = await supabase
     .from("suppliers")
-    .insert([{ name, phone: phone || null }]);
+    .insert([{ 
+      shop_id: shopId, 
+      name, 
+      phone: phone || null,
+      note: note || null
+    }]);
   if (error) throw error;
 };
 
-const updateSupplier = async (id: string, name: string, phone?: string) => {
+// Update supplier
+const updateSupplier = async (id: string, name: string, phone?: string, note?: string) => {
   const { error } = await supabase
     .from("suppliers")
-    .update({ name, phone: phone || null })
+    .update({ name, phone: phone || null, note: note || null })
     .eq("id", id);
   if (error) throw error;
 };
 
+// Delete supplier
 const deleteSupplier = async (id: string) => {
   const { error } = await supabase
     .from("suppliers")
@@ -74,6 +89,7 @@ function SuppliersPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [newNote, setNewNote] = useState("");
 
   const { data: suppliers = [], isLoading, error } = useQuery({
     queryKey: ["suppliers"],
@@ -81,25 +97,27 @@ function SuppliersPage() {
   });
 
   const addMutation = useMutation({
-    mutationFn: ({ name, phone }: { name: string; phone?: string }) =>
-      addSupplier(name, phone),
+    mutationFn: ({ name, phone, note }: { name: string; phone?: string; note?: string }) =>
+      addSupplier(name, phone, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       setIsAddDialogOpen(false);
       setNewName("");
       setNewPhone("");
+      setNewNote("");
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, name, phone }: { id: string; name: string; phone?: string }) =>
-      updateSupplier(id, name, phone),
+    mutationFn: ({ id, name, phone, note }: { id: string; name: string; phone?: string; note?: string }) =>
+      updateSupplier(id, name, phone, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       setIsEditDialogOpen(false);
       setEditingSupplier(null);
       setNewName("");
       setNewPhone("");
+      setNewNote("");
     },
   });
 
@@ -113,7 +131,11 @@ function SuppliersPage() {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    addMutation.mutate({ name: newName.trim(), phone: newPhone.trim() || undefined });
+    addMutation.mutate({ 
+      name: newName.trim(), 
+      phone: newPhone.trim() || undefined,
+      note: newNote.trim() || undefined
+    });
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -123,6 +145,7 @@ function SuppliersPage() {
       id: editingSupplier.id,
       name: newName.trim(),
       phone: newPhone.trim() || undefined,
+      note: newNote.trim() || undefined,
     });
   };
 
@@ -130,18 +153,22 @@ function SuppliersPage() {
     setEditingSupplier(supplier);
     setNewName(supplier.name);
     setNewPhone(supplier.phone || "");
+    setNewNote(supplier.note || "");
     setIsEditDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Je, una uhakika unataka kufuta muuzaji huyu?")) {
+  const handleDelete = (id: string, name: string) => {
+    if (window.confirm(`Je, una uhakika unataka kufuta muuzaji "${name}"?`)) {
       deleteMutation.mutate(id);
     }
   };
 
   return (
     <AppShell>
-      <PageHeader title="Wauzaji" description="Udhibiti wa wauzaji na wasambazaji" />
+      <PageHeader 
+        title="Wauzaji" 
+        description="Udhibiti wa wauzaji na wasambazaji wa bidhaa zako" 
+      />
 
       <div className="flex justify-between items-center mb-4">
         <div className="text-sm text-muted-foreground">
@@ -178,6 +205,15 @@ function SuppliersPage() {
                   placeholder="0712345678"
                 />
               </div>
+              <div>
+                <Label htmlFor="note">Maelezo (hiari)</Label>
+                <Input
+                  id="note"
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Anuani au maelezo mengine"
+                />
+              </div>
               <div className="flex justify-end">
                 <Button type="submit" disabled={addMutation.isPending}>
                   {addMutation.isPending ? <Loader2 className="animate-spin" /> : "Hifadhi"}
@@ -203,6 +239,7 @@ function SuppliersPage() {
               <TableRow>
                 <TableHead>Jina</TableHead>
                 <TableHead>Simu</TableHead>
+                <TableHead>Maelezo</TableHead>
                 <TableHead className="text-right">Vitendo</TableHead>
               </TableRow>
             </TableHeader>
@@ -211,6 +248,7 @@ function SuppliersPage() {
                 <TableRow key={supplier.id}>
                   <TableCell className="font-medium">{supplier.name}</TableCell>
                   <TableCell>{supplier.phone || "-"}</TableCell>
+                  <TableCell>{supplier.note || "-"}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
@@ -223,7 +261,7 @@ function SuppliersPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDelete(supplier.id)}
+                      onClick={() => handleDelete(supplier.id, supplier.name)}
                       className="text-red-500 hover:text-red-700"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -236,6 +274,7 @@ function SuppliersPage() {
         </div>
       )}
 
+      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -259,6 +298,15 @@ function SuppliersPage() {
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
                 placeholder="0712345678"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-note">Maelezo (hiari)</Label>
+              <Input
+                id="edit-note"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Anuani au maelezo mengine"
               />
             </div>
             <div className="flex justify-end">
