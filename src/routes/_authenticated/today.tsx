@@ -34,7 +34,6 @@ type TodaySummary = {
 };
 
 function TodayPage() {
-  // Get current user
   const { data: user } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
@@ -44,7 +43,6 @@ function TodayPage() {
     },
   });
 
-  // Get staff role
   const { data: staff } = useQuery({
     queryKey: ["currentStaff"],
     queryFn: async () => {
@@ -60,7 +58,6 @@ function TodayPage() {
     enabled: !!user,
   });
 
-  // Fetch today's sales
   const { data, isLoading, error } = useQuery({
     queryKey: ["todaySales", staff?.id, staff?.role],
     queryFn: async () => {
@@ -86,7 +83,6 @@ function TodayPage() {
         .eq("status", "completed")
         .order("created_at", { ascending: false });
 
-      // If cashier, filter by cashier_id
       if (staff.role === 'cashier') {
         query = query.eq("cashier_id", staff.id);
       }
@@ -139,86 +135,27 @@ function TodayPage() {
         title="Mauzo ya Leo"
         description={format(new Date(), "EEEE, dd MMMM yyyy")}
       />
-
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Jumla ya Mauzo</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.total_revenue)}</div>
-            <p className="text-xs text-muted-foreground">{summary.total_sales} mauzo</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Fedha</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.total_cash)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Mkopo</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{formatCurrency(summary.total_credit)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Wastani wa Mauzo</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.average_sale)}</div>
-          </CardContent>
-        </Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Jumla ya Mauzo</CardTitle><TrendingUp className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatCurrency(summary.total_revenue)}</div><p className="text-xs text-muted-foreground">{summary.total_sales} mauzo</p></CardContent></Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Fedha</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">{formatCurrency(summary.total_cash)}</div></CardContent></Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Mkopo</CardTitle><CreditCard className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-blue-600">{formatCurrency(summary.total_credit)}</div></CardContent></Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Wastani wa Mauzo</CardTitle><ShoppingBag className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatCurrency(summary.average_sale)}</div></CardContent></Card>
       </div>
-
-      {/* Sales List */}
       <div className="border rounded-lg overflow-hidden">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Risiti</TableHead>
-              <TableHead>Mteja</TableHead>
-              <TableHead>Jumla</TableHead>
-              <TableHead>Malipo</TableHead>
-              <TableHead>Saa</TableHead>
-            </TableRow>
-          </TableHeader>
+          <TableHeader><TableRow><TableHead>Risiti</TableHead><TableHead>Mteja</TableHead><TableHead>Jumla</TableHead><TableHead>Malipo</TableHead><TableHead>Saa</TableHead></TableRow></TableHeader>
           <TableBody>
-            {sales.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  Hakuna mauzo leo.
-                </TableCell>
-              </TableRow>
-            ) : (
-              sales.map((sale) => (
+            {sales.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Hakuna mauzo leo.</TableCell></TableRow> :
+              sales.map(sale => (
                 <TableRow key={sale.id}>
                   <TableCell className="font-medium">{sale.receipt_number}</TableCell>
                   <TableCell>{sale.customers?.name || "Mteja wa Oda"}</TableCell>
                   <TableCell>{formatCurrency(sale.total)}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      sale.payment_method === 'cash' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {sale.payment_method === 'cash' ? 'Fedha' : 'Mkopo'}
-                    </span>
-                  </TableCell>
+                  <TableCell><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${sale.payment_method === 'cash' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{sale.payment_method === 'cash' ? 'Fedha' : 'Mkopo'}</span></TableCell>
                   <TableCell>{formatTime(sale.created_at)}</TableCell>
                 </TableRow>
               ))
-            )}
+            }
           </TableBody>
         </Table>
       </div>
