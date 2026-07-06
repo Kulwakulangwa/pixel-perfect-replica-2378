@@ -68,14 +68,16 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userRole, setUserRole] = useState<"owner" | "cashier">("cashier");
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  // --- Hydration safety: only render dynamic content after mount ---
+  // --- Mark client as ready after mount ---
   useEffect(() => {
-    setMounted(true);
+    setReady(true);
   }, []);
 
+  // --- Fetch user role only on client ---
   useEffect(() => {
+    if (!ready) return;
     let isMounted = true;
     const fetchUserRole = async () => {
       try {
@@ -116,7 +118,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [navigate]);
+  }, [ready, navigate]);
 
   // Owner-only redirect
   useEffect(() => {
@@ -130,16 +132,8 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     navigate({ to: "/auth" });
   };
 
-  // --- Show nothing until mounted (client only) to avoid hydration mismatch ---
-  if (!mounted) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  if (loading) {
+  // --- Before hydration, show a spinner (server & client match) ---
+  if (!ready || loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -153,7 +147,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
 
   return (
     <ErrorBoundary>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background" suppressHydrationWarning>
         {/* Mobile overlay */}
         {isSidebarOpen && (
           <div
