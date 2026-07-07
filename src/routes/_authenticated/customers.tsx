@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { format } from "date-fns";
-import { Loader2, UserPlus } from "lucide-react";
+import { Loader2, UserPlus, Users, DollarSign, Phone } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/customers")({
   ssr: false,
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/customers")({
 
 // --- Types ---
 type CustomerBalance = {
-  id: string;
+  id: string;       // we'll alias customer_id as id
   name: string;
   phone: string | null;
   balance: number;
@@ -52,9 +52,65 @@ type CustomerPayment = {
   note: string | null;
 };
 
-// --- Queries ---
+// --- Stat card helper ---
+const STAT_STYLES = {
+  dark: {
+    card: "bg-[#16294A] dark:bg-[#0a1628] text-white dark:text-slate-200 border-transparent",
+    label: "text-white/70 dark:text-slate-300",
+    iconWrap: "bg-white/10 text-white dark:bg-slate-700/50 dark:text-slate-200",
+  },
+  mint: {
+    card: "bg-white dark:bg-[#121212] border-border dark:border-border/30",
+    label: "text-muted-foreground dark:text-muted-foreground/80",
+    iconWrap: "bg-[#E4F7EC] text-[#2FAE60] dark:bg-[#0a2a1a] dark:text-[#34d399]",
+  },
+  amber: {
+    card: "bg-white dark:bg-[#121212] border-border dark:border-border/30",
+    label: "text-muted-foreground dark:text-muted-foreground/80",
+    iconWrap: "bg-[#FFF1DE] text-[#F5A623] dark:bg-[#3a2a10] dark:text-[#fbbf24]",
+  },
+  rose: {
+    card: "bg-white dark:bg-[#121212] border-border dark:border-border/30",
+    label: "text-muted-foreground dark:text-muted-foreground/80",
+    iconWrap: "bg-[#FDE7E5] text-[#E4574A] dark:bg-[#3a1a1a] dark:text-[#f87171]",
+  },
+} as const;
+
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  variant = "mint",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  variant?: keyof typeof STAT_STYLES;
+}) {
+  const v = STAT_STYLES[variant];
+  return (
+    <div className={`rounded-2xl border p-4 lg:p-5 shadow-sm ${v.card}`}>
+      <div className="flex items-start justify-between">
+        <div className={`text-xs font-medium uppercase tracking-wide ${v.label}`}>{label}</div>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-full ${v.iconWrap}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-3 text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
+      {sub && <div className={`text-xs mt-1 ${v.label}`}>{sub}</div>}
+    </div>
+  );
+}
+
+// --- Queries & Mutations ---
 const fetchCustomers = async (): Promise<CustomerBalance[]> => {
-  const { data, error } = await supabase.from("v_customer_balances").select("*");
+  // Alias customer_id as id so the rest of the code works
+  const { data, error } = await supabase
+    .from("v_customer_balances")
+    .select("customer_id as id, name, phone, balance")
+    .order("name");
   if (error) throw error;
   return data || [];
 };
@@ -82,7 +138,14 @@ const fetchCustomerPayments = async (customerId: string): Promise<CustomerPaymen
 
 // --- Mutations ---
 const addCustomer = async (name: string, phone?: string) => {
-  const { error } = await supabase.from("customers").insert([{ name, phone: phone || null }]);
+  // Get current shop_id
+  const { data: shopId, error: shopError } = await supabase.rpc("current_shop_id");
+  if (shopError) throw shopError;
+  if (!shopId) throw new Error("No shop found for this user.");
+
+  const { error } = await supabase
+    .from("customers")
+    .insert([{ shop_id: shopId, name, phone: phone || null }]);
   if (error) throw error;
 };
 
@@ -98,7 +161,7 @@ const recordPayment = async (
   if (error) throw error;
 };
 
-// --- Main Component ---
+// --- Component ---
 function CustomersPage() {
   const queryClient = useQueryClient();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -135,6 +198,9 @@ function CustomersPage() {
       setAddDialogOpen(false);
       setNewCustomerName("");
       setNewCustomerPhone("");
+    },
+    onError: (err) => {
+      alert("Imeshindwa kuongeza mteja: " + (err as Error).message);
     },
   });
 
@@ -194,220 +260,252 @@ function CustomersPage() {
       minimumFractionDigits: 0,
     }).format(value);
 
+  // --- Stats ---
+  const totalCustomers = customers.length;
+  const totalDebt = customers.reduce((sum, c) => sum + c.balance, 0);
+  const withPhone = customers.filter((c) => c.phone).length;
+
   return (
     <AppShell>
-      <PageHeader title="Wateja" description="Orodha ya wateja na mizani yao" />
-
-      <div className="flex justify-between items-center mb-4">
-        <div className="text-sm text-muted-foreground">Jumla ya wateja: {customers.length}</div>
-        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Ongeza Mteja
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Ongeza Mteja Mpya</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAddCustomer} className="space-y-4">
-              <div>
-                <Label htmlFor="name">Jina *</Label>
-                <Input
-                  id="name"
-                  value={newCustomerName}
-                  onChange={(e) => setNewCustomerName(e.target.value)}
-                  placeholder="Jina la mteja"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone">Namba ya Simu (si lazima)</Label>
-                <Input
-                  id="phone"
-                  value={newCustomerPhone}
-                  onChange={(e) => setNewCustomerPhone(e.target.value)}
-                  placeholder="0712345678"
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button type="submit" disabled={addCustomerMutation.isPending}>
-                  {addCustomerMutation.isPending ? <Loader2 className="animate-spin" /> : "Hifadhi"}
+      <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+        <PageHeader
+          title="Customers"
+          description="Manage your customers and their balances"
+          action={
+            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl">
+                  <UserPlus className="mr-2 h-4 w-4" /> Add Customer
                 </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : error ? (
-        <div className="text-red-500">Imeshindwa kupakia wateja. Jaribu tena.</div>
-      ) : customers.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Hakuna wateja bado. Ongeza mteja kwanza.
-        </div>
-      ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Jina</TableHead>
-                <TableHead>Simu</TableHead>
-                <TableHead className="text-right">Mizani</TableHead>
-                <TableHead className="text-right">Vitendo</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {customers.map((customer) => (
-                <TableRow
-                  key={customer.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleCustomerClick(customer.id)}
-                >
-                  <TableCell className="font-medium">{customer.name}</TableCell>
-                  <TableCell>{customer.phone || "-"}</TableCell>
-                  <TableCell
-                    className={`text-right font-semibold ${customer.balance > 0 ? "text-red-600" : "text-green-600"}`}
-                  >
-                    {formatCurrency(customer.balance)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCustomerClick(customer.id);
-                      }}
-                    >
-                      Tazama
+              </DialogTrigger>
+              <DialogContent className="dark:bg-[#1a1a1a] dark:border-slate-700">
+                <DialogHeader>
+                  <DialogTitle className="dark:text-slate-200">Add New Customer</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleAddCustomer} className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium">Name *</Label>
+                    <Input
+                      value={newCustomerName}
+                      onChange={(e) => setNewCustomerName(e.target.value)}
+                      placeholder="e.g., John Doe"
+                      className="rounded-xl"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Phone (optional)</Label>
+                    <Input
+                      value={newCustomerPhone}
+                      onChange={(e) => setNewCustomerPhone(e.target.value)}
+                      placeholder="0712345678"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">
+                      Cancel
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Maelezo ya Mteja</DialogTitle>
-          </DialogHeader>
-          {selectedCustomerId && (
-            <Tabs defaultValue="purchases" className="mt-4">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="purchases">Manunuzi</TabsTrigger>
-                <TabsTrigger value="payments">Malipo</TabsTrigger>
-                <TabsTrigger value="record">Rekodi Malipo</TabsTrigger>
-              </TabsList>
-              <TabsContent value="purchases" className="space-y-4">
-                {salesLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                ) : sales.length === 0 ? (
-                  <p className="text-muted-foreground">Hakuna manunuzi ya mkopo kwa mteja huyu.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tarehe</TableHead>
-                        <TableHead className="text-right">Kiasi</TableHead>
-                        <TableHead>Hali</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sales.map((sale) => (
-                        <TableRow key={sale.id}>
-                          <TableCell>
-                            {format(new Date(sale.created_at), "dd/MM/yyyy HH:mm")}
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(sale.total)}</TableCell>
-                          <TableCell>{sale.status}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </TabsContent>
-              <TabsContent value="payments" className="space-y-4">
-                {paymentsLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                ) : payments.length === 0 ? (
-                  <p className="text-muted-foreground">Hakuna malipo yaliyorekodiwa bado.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tarehe</TableHead>
-                        <TableHead className="text-right">Kiasi</TableHead>
-                        <TableHead>Maelezo</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {payments.map((payment) => (
-                        <TableRow key={payment.id}>
-                          <TableCell>
-                            {format(new Date(payment.payment_date), "dd/MM/yyyy")}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(payment.amount)}
-                          </TableCell>
-                          <TableCell>{payment.note || "-"}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </TabsContent>
-              <TabsContent value="record">
-                <form onSubmit={handleRecordPayment} className="space-y-4 py-2">
-                  <div>
-                    <Label htmlFor="amount">Kiasi (TZS)</Label>
-                    <Input
-                      id="amount"
-                      name="amount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="15000"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="paymentDate">Tarehe ya Malipo</Label>
-                    <Input
-                      id="paymentDate"
-                      name="paymentDate"
-                      type="date"
-                      defaultValue={new Date().toISOString().split("T")[0]}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="note">Maelezo (si lazima)</Label>
-                    <Input id="note" name="note" placeholder="Malipo ya awamu ya pili" />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button type="submit" disabled={recordPaymentMutation.isPending}>
-                      {recordPaymentMutation.isPending ? (
-                        <Loader2 className="animate-spin" />
-                      ) : (
-                        "Rekodi Malipo"
-                      )}
+                    <Button type="submit" disabled={addCustomerMutation.isPending} className="rounded-xl">
+                      {addCustomerMutation.isPending ? <Loader2 className="animate-spin" /> : "Save"}
                     </Button>
                   </div>
                 </form>
-              </TabsContent>
-            </Tabs>
-          )}
-        </DialogContent>
-      </Dialog>
+              </DialogContent>
+            </Dialog>
+          }
+        />
+
+        {/* Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <StatCard
+            label="Total Customers"
+            value={String(totalCustomers)}
+            icon={Users}
+            variant="dark"
+          />
+          <StatCard
+            label="Total Outstanding Debt"
+            value={formatCurrency(totalDebt)}
+            icon={DollarSign}
+            variant="rose"
+          />
+          <StatCard
+            label="With Phone"
+            value={String(withPhone)}
+            sub={`${totalCustomers > 0 ? Math.round((withPhone / totalCustomers) * 100) : 0}%`}
+            icon={Phone}
+            variant="mint"
+          />
+        </div>
+
+        {/* Table */}
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          </div>
+        ) : error ? (
+          <div className="text-red-500">Imeshindwa kupakia wateja. Jaribu tena.</div>
+        ) : customers.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground dark:text-slate-400">
+            No customers yet. Add your first customer.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {customers.map((customer) => (
+                  <TableRow
+                    key={customer.id}
+                    className="cursor-pointer hover:bg-muted/50 dark:hover:bg-muted/20"
+                    onClick={() => handleCustomerClick(customer.id)}
+                  >
+                    <TableCell className="font-medium dark:text-slate-200">{customer.name}</TableCell>
+                    <TableCell className="dark:text-slate-300">{customer.phone || "-"}</TableCell>
+                    <TableCell
+                      className={`text-right font-semibold tabular-nums ${customer.balance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}
+                    >
+                      {formatCurrency(customer.balance)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCustomerClick(customer.id);
+                        }}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Detail Modal */}
+        <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto dark:bg-[#1a1a1a] dark:border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="dark:text-slate-200">Customer Details</DialogTitle>
+            </DialogHeader>
+            {selectedCustomerId && (
+              <Tabs defaultValue="purchases" className="mt-4">
+                <TabsList className="grid w-full grid-cols-3 dark:bg-slate-800">
+                  <TabsTrigger value="purchases" className="dark:data-[state=active]:bg-slate-700">Purchases</TabsTrigger>
+                  <TabsTrigger value="payments" className="dark:data-[state=active]:bg-slate-700">Payments</TabsTrigger>
+                  <TabsTrigger value="record" className="dark:data-[state=active]:bg-slate-700">Record Payment</TabsTrigger>
+                </TabsList>
+                <TabsContent value="purchases" className="space-y-4">
+                  {salesLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                  ) : sales.length === 0 ? (
+                    <p className="text-muted-foreground dark:text-slate-400">No credit purchases for this customer.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sales.map((sale) => (
+                          <TableRow key={sale.id}>
+                            <TableCell>{format(new Date(sale.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(sale.total)}</TableCell>
+                            <TableCell>{sale.status}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+                <TabsContent value="payments" className="space-y-4">
+                  {paymentsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                  ) : payments.length === 0 ? (
+                    <p className="text-muted-foreground dark:text-slate-400">No payments recorded yet.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead>Note</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {payments.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell>{format(new Date(payment.payment_date), "dd/MM/yyyy")}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                            <TableCell>{payment.note || "-"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+                <TabsContent value="record">
+                  <form onSubmit={handleRecordPayment} className="space-y-4 py-2">
+                    <div>
+                      <Label htmlFor="amount">Amount (TZS)</Label>
+                      <Input
+                        id="amount"
+                        name="amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="15000"
+                        className="rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="paymentDate">Payment Date</Label>
+                      <Input
+                        id="paymentDate"
+                        name="paymentDate"
+                        type="date"
+                        defaultValue={new Date().toISOString().split("T")[0]}
+                        className="rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="note">Note (optional)</Label>
+                      <Input
+                        id="note"
+                        name="note"
+                        placeholder="e.g., Second installment"
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={recordPaymentMutation.isPending} className="rounded-xl">
+                        {recordPaymentMutation.isPending ? <Loader2 className="animate-spin" /> : "Record Payment"}
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
     </AppShell>
   );
 }
