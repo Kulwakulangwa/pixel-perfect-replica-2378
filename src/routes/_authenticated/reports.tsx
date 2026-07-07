@@ -73,7 +73,6 @@ function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Set default date range when report type changes
   useEffect(() => {
     const { from, to } = getDefaultDateRange(reportType);
     setFromDate(from);
@@ -81,8 +80,7 @@ function ReportsPage() {
     setDateDescription(`${format(new Date(from), "dd/MM/yyyy")} - ${format(new Date(to), "dd/MM/yyyy")}`);
   }, [reportType]);
 
-  // --- Queries ---
-  // 1. Sales summary via RPC
+  // Queries...
   const { data: summaryData, isLoading: summaryLoading, error: summaryError } = useQuery({
     queryKey: ["report-summary", fromDate, toDate],
     queryFn: async () => {
@@ -100,7 +98,6 @@ function ReportsPage() {
     enabled: !!fromDate && !!toDate,
   });
 
-  // 2. Best sellers
   const { data: bestSellersData, isLoading: bestSellersLoading, error: bestSellersError } = useQuery({
     queryKey: ["best-sellers", fromDate, toDate],
     queryFn: async () => {
@@ -119,7 +116,6 @@ function ReportsPage() {
     enabled: !!fromDate && !!toDate,
   });
 
-  // 3. Expenses for the period
   const { data: expensesData, isLoading: expensesLoading, error: expensesError } = useQuery({
     queryKey: ["expenses-data", fromDate, toDate],
     queryFn: async () => {
@@ -139,15 +135,12 @@ function ReportsPage() {
     enabled: !!fromDate && !!toDate,
   });
 
-  // Combine loading states
   const isLoading = summaryLoading || bestSellersLoading || expensesLoading;
   const hasError = summaryError || bestSellersError || expensesError;
 
-  // --- Compute derived data ---
   const reportData = useMemo(() => {
     if (!summaryData || !bestSellersData || !expensesData) return null;
 
-    // Group sales by day/week/month
     const groupSales = (groupFn: (date: Date) => string) => {
       const groups: Record<string, { revenue: number; profit: number; count: number }> = {};
       summaryData.forEach((row) => {
@@ -185,18 +178,15 @@ function ReportsPage() {
         break;
     }
 
-    // Total revenue for the period
     const totalRevenue = salesReport.reduce((s, r) => s + r.revenue, 0);
     const totalProfit = salesReport.reduce((s, r) => s + r.profit, 0);
     const totalSalesCount = salesReport.reduce((s, r) => s + r.count, 0);
 
-    // Best sellers
     const bestSellers = bestSellersData.map((item) => ({
       ...item,
       revenue: Number(item.revenue),
     }));
 
-    // Expenses
     const totalExpenses = expensesData.reduce((sum, e) => sum + Number(e.amount), 0);
     const expensesByCategory: Record<string, number> = {};
     expensesData.forEach((e) => {
@@ -217,7 +207,6 @@ function ReportsPage() {
     };
   }, [summaryData, bestSellersData, expensesData, reportType]);
 
-  // --- Render helpers ---
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("sw-TZ", {
       style: "currency",
@@ -290,28 +279,30 @@ function ReportsPage() {
           />
         </div>
         <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{data.periodLabel}</TableHead>
-                <TableHead className="text-right">Mauzo</TableHead>
-                <TableHead className="text-right">Faida</TableHead>
-                <TableHead className="text-right">Idadi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.salesReport.map((row: any) => (
-                <TableRow key={row.label}>
-                  <TableCell className="font-medium">{row.label}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(row.revenue)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                    {formatCurrency(row.profit)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{row.count}</TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[80px]">{data.periodLabel}</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Mauzo</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Faida</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Idadi</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.salesReport.map((row: any) => (
+                  <TableRow key={row.label}>
+                    <TableCell className="font-medium">{row.label}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(row.revenue)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(row.profit)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{row.count}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     );
@@ -321,38 +312,40 @@ function ReportsPage() {
     return (
       <div>
         <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Bidhaa</TableHead>
-                <TableHead className="text-right">Idadi</TableHead>
-                <TableHead className="text-right">Mapato</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.bestSellers.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    Hakuna mauzo katika kipindi hiki.
-                  </TableCell>
+                  <TableHead className="min-w-[40px]">#</TableHead>
+                  <TableHead className="min-w-[120px]">Bidhaa</TableHead>
+                  <TableHead className="text-right min-w-[60px]">Idadi</TableHead>
+                  <TableHead className="text-right min-w-[100px]">Mapato</TableHead>
                 </TableRow>
-              ) : (
-                data.bestSellers.map((item: any, i: number) => (
-                  <TableRow key={item.product_id}>
-                    <TableCell>
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16294A] dark:bg-[#2a4a7a] text-[11px] font-semibold text-white">
-                        {i + 1}
-                      </span>
+              </TableHeader>
+              <TableBody>
+                {data.bestSellers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      Hakuna mauzo katika kipindi hiki.
                     </TableCell>
-                    <TableCell className="font-medium">{item.product_name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{item.units_sold}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCurrency(item.revenue)}</TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  data.bestSellers.map((item: any, i: number) => (
+                    <TableRow key={item.product_id}>
+                      <TableCell>
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16294A] dark:bg-[#2a4a7a] text-[11px] font-semibold text-white">
+                          {i + 1}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-medium">{item.product_name}</TableCell>
+                      <TableCell className="text-right tabular-nums">{item.units_sold}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(item.revenue)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     );
@@ -394,7 +387,7 @@ function ReportsPage() {
     const categories = Object.entries(data.expenses.byCategory);
     return (
       <div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <StatCard
             label="Jumla ya Gharama"
             value={formatCurrency(data.expenses.total)}
@@ -409,30 +402,32 @@ function ReportsPage() {
           />
         </div>
         <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Aina</TableHead>
-                <TableHead className="text-right">Kiasi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {categories.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
-                    Hakuna gharama katika kipindi hiki.
-                  </TableCell>
+                  <TableHead className="min-w-[100px]">Aina</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Kiasi</TableHead>
                 </TableRow>
-              ) : (
-                categories.map(([category, amount]) => (
-                  <TableRow key={category}>
-                    <TableCell className="capitalize">{category.replace("_", " ")}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCurrency(amount)}</TableCell>
+              </TableHeader>
+              <TableBody>
+                {categories.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                      Hakuna gharama katika kipindi hiki.
+                    </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  categories.map(([category, amount]) => (
+                    <TableRow key={category}>
+                      <TableCell className="capitalize">{category.replace("_", " ")}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(amount)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     );
