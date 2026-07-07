@@ -158,6 +158,7 @@ function PosPage() {
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
+      // ✅ Correct alias syntax with space
       const { data, error } = await supabase
         .from("v_customer_balances")
         .select("customer_id as id, name, phone, balance")
@@ -390,7 +391,10 @@ function PosPage() {
           till_session_id: null,
           client_ref: null,
         });
-        if (saleError) throw saleError;
+        if (saleError) {
+          console.error("Sale insert error:", saleError);
+          throw saleError;
+        }
 
         for (const item of cart) {
           const { error: itemError } = await supabase.from("sale_items").insert({
