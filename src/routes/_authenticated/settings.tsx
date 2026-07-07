@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,14 @@ export const Route = createFileRoute("/_authenticated/settings")({
 const OWNER_EMAIL = "kulwakulangwa@gmail.com";
 const SHOP_ID = "11111111-1111-1111-1111-111111111111";
 
-const fetchShopSettings = async () => {
+type ShopSettings = {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  receipt_footer: string | null;
+};
+
+const fetchShopSettings = async (): Promise<ShopSettings> => {
   const {
     data: { user },
     error: userError,
@@ -31,7 +39,7 @@ const fetchShopSettings = async () => {
       .eq("id", SHOP_ID)
       .single();
     if (error) throw error;
-    return data;
+    return data as ShopSettings;
   }
 
   // Cashiers fallback
@@ -47,7 +55,7 @@ const fetchShopSettings = async () => {
     .eq("id", staff.shop_id)
     .single();
   if (error) throw error;
-  return data;
+  return data as ShopSettings;
 };
 
 function SettingsPage() {
@@ -56,14 +64,17 @@ function SettingsPage() {
     isLoading,
     error,
     refetch,
-  } = useQuery({
+  } = useQuery<ShopSettings, Error>({
     queryKey: ["shopSettings"],
     queryFn: fetchShopSettings,
     retry: 1,
-    onError: (err) => {
-      toast.error("Imeshindwa kupakia maelezo ya duka: " + (err as Error).message);
-    },
   });
+
+  useEffect(() => {
+    if (error) {
+      toast.error("Imeshindwa kupakia maelezo ya duka: " + error.message);
+    }
+  }, [error]);
 
   if (isLoading) {
     return (

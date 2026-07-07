@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -39,7 +39,11 @@ export function CashierList() {
   const [name, setName] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const { data: cashiers = [], isLoading } = useQuery({
+  const {
+    data: cashiers = [],
+    isLoading,
+    error: cashiersError,
+  } = useQuery<Staff[], Error>({
     queryKey: ["cashiers"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -49,10 +53,13 @@ export function CashierList() {
       if (error) throw error;
       return data as Staff[];
     },
-    onError: (err) => {
-      toast.error("Imeshindwa kupakia orodha ya wasimamizi: " + (err as Error).message);
-    },
   });
+
+  useEffect(() => {
+    if (cashiersError) {
+      toast.error("Imeshindwa kupakia orodha ya wasimamizi: " + cashiersError.message);
+    }
+  }, [cashiersError]);
 
   const updatePermission = useMutation({
     mutationFn: async ({ id, can_discount }: { id: string; can_discount: boolean }) => {

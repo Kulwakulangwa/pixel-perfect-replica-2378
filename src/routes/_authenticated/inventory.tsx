@@ -61,8 +61,11 @@ type MovementQueryRow = {
   note: string | null;
   created_at: string;
   created_by: string | null;
-  products: { name: string } | null;
+  products: { name: string } | { name: string }[] | null;
 };
+
+const getJoinedProductName = (products: MovementQueryRow["products"]) =>
+  Array.isArray(products) ? products[0]?.name : products?.name;
 
 function InventoryPage() {
   const qc = useQueryClient();
@@ -92,9 +95,9 @@ function InventoryPage() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data as MovementQueryRow[]).map((m) => ({
+      return ((data ?? []) as unknown as MovementQueryRow[]).map((m) => ({
         ...m,
-        product_name: m.products?.name,
+        product_name: getJoinedProductName(m.products),
       })) as Movement[];
     },
   });

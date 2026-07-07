@@ -49,8 +49,15 @@ type SaleItem = {
     id: string;
     name: string;
     buying_price: number;
-  };
+  } | {
+    id: string;
+    name: string;
+    buying_price: number;
+  }[] | null;
 };
+
+const getSaleItemProduct = (products: SaleItem["products"]) =>
+  Array.isArray(products) ? products[0] : products;
 
 type Expense = {
   id: string;
@@ -88,7 +95,7 @@ const fetchSaleItems = async (saleIds: string[]) => {
     )
     .in("sale_id", saleIds);
   if (error) throw error;
-  return data as SaleItem[];
+  return (data ?? []) as unknown as SaleItem[];
 };
 
 const fetchExpenses = async (from: string, to: string) => {
@@ -227,7 +234,7 @@ function ReportsPage() {
         [productId: string]: { name: string; quantity: number; revenue: number };
       } = {};
       items.forEach((item) => {
-        const p = item.products;
+        const p = getSaleItemProduct(item.products);
         if (!p) return;
         if (!productSales[p.id]) {
           productSales[p.id] = { name: p.name, quantity: 0, revenue: 0 };
