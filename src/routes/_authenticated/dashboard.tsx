@@ -99,7 +99,7 @@ function DashboardPage() {
   };
 
   return (
-    <AppShell>
+    <AppShell requireOwner>
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Dashboard" description="Muhtasari wa duka lako" />
 

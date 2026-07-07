@@ -446,7 +446,7 @@ function ReportsPage() {
   };
 
   return (
-    <AppShell>
+    <AppShell requireOwner>
       <PageHeader title="Ripoti" description="Changanua mauzo, faida, gharama na faida halisi" />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

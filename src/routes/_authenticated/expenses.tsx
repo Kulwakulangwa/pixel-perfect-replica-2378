@@ -228,7 +228,7 @@ function ExpensesPage() {
   };
 
   return (
-    <AppShell>
+    <AppShell requireOwner>
       <PageHeader title="Gharama" description="Rekodi, hariri na futa gharama zako" />
 
       {/* Add Form (same as before) */}

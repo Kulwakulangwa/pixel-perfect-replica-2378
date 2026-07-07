@@ -78,7 +78,7 @@ function SettingsPage() {
 
   if (isLoading) {
     return (
-      <AppShell>
+      <AppShell requireOwner>
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -88,7 +88,7 @@ function SettingsPage() {
 
   if (error || !shop) {
     return (
-      <AppShell>
+      <AppShell requireOwner>
         <div className="p-8 text-center">
           <div className="text-red-500 mb-4">Imeshindwa kupakia maelezo ya duka</div>
           <Button onClick={() => refetch()}>Jaribu tena</Button>
@@ -101,7 +101,7 @@ function SettingsPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell requireOwner>
       <PageHeader title="Mipangilio" description="Dhibiti mazingira ya duka lako" />
       <div className="space-y-8">
         <ShopInfo

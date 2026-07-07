@@ -171,7 +171,7 @@ function SuppliersPage() {
   };
 
   return (
-    <AppShell>
+    <AppShell requireOwner>
       <PageHeader title="Wauzaji" description="Udhibiti wa wauzaji na wasambazaji wa bidhaa zako" />
 
       <div className="flex justify-between items-center mb-4">
