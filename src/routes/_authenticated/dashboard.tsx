@@ -4,7 +4,15 @@ import { useState, useEffect } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/currency";
-import { AlertTriangle, TrendingUp, Package, Users, Receipt } from "lucide-react";
+import {
+  AlertTriangle,
+  TrendingUp,
+  Package,
+  Users,
+  Receipt,
+  Wallet,
+  ArrowUpRight,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   ssr: false,
@@ -98,31 +106,66 @@ function DashboardPage() {
     monthProfit: rows.filter((r) => inRange(r.day, startOfMonth)).reduce((s, r) => s + Number(r.profit), 0),
   };
 
+  const totalDebt = (debtors ?? []).reduce((s, d) => s + Number(d.balance), 0);
+
   return (
-    <AppShell requireOwner>
+    <AppShell>
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Dashboard" description="Muhtasari wa duka lako" />
 
+        {/* Stat row — dark navy hero card + three light cards, icon badges like the reference */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
-          <StatCard label="Mauzo Leo" value={formatMoney(totals.todayRev)} sub={`Faida ${formatMoney(totals.todayProfit)}`} accent />
-          <StatCard label="Wiki hii" value={formatMoney(totals.weekRev)} sub="Mauzo" />
-          <StatCard label="Mwezi huu" value={formatMoney(totals.monthRev)} sub={`Faida ${formatMoney(totals.monthProfit)}`} />
-          <StatCard label="Deni jumla" value={formatMoney((debtors ?? []).reduce((s, d) => s + Number(d.balance), 0))} sub={`${debtors?.length ?? 0} wateja`} />
+          <StatCard
+            label="Mauzo Leo"
+            value={formatMoney(totals.todayRev)}
+            sub={`Faida ${formatMoney(totals.todayProfit)}`}
+            icon={Wallet}
+            variant="dark"
+          />
+          <StatCard
+            label="Wiki hii"
+            value={formatMoney(totals.weekRev)}
+            sub="Mauzo ya wiki"
+            icon={TrendingUp}
+            variant="mint"
+          />
+          <StatCard
+            label="Mwezi huu"
+            value={formatMoney(totals.monthRev)}
+            sub={`Faida ${formatMoney(totals.monthProfit)}`}
+            icon={Receipt}
+            variant="amber"
+          />
+          <StatCard
+            label="Deni jumla"
+            value={formatMoney(totalDebt)}
+            sub={`${debtors?.length ?? 0} wateja wenye deni`}
+            icon={Users}
+            variant="rose"
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <Card className="lg:col-span-2">
-            <CardHeader icon={Users} title="Wateja wenye deni" href="/customers" />
-            <div className="divide-y divide-border">
+            <CardHeader icon={Users} iconBg="bg-[#EFE7FF] text-[#7C5CFC]" title="Wateja wenye deni" href="/customers" />
+            <div className="divide-y divide-border/60">
               {(debtors ?? []).length === 0 && <EmptyRow msg="Hakuna deni kwa sasa." />}
               {(debtors ?? []).map((d) => (
-                <Link key={d.customer_id} to="/customers/$id" params={{ id: d.customer_id }} className="flex items-center justify-between py-3 hover:bg-accent/40 -mx-4 px-4">
-                  <div>
-                    <div className="font-medium text-sm">{d.name}</div>
-                    <div className="text-xs text-muted-foreground">{d.phone ?? "—"}</div>
+                <Link
+                  key={d.customer_id}
+                  to="/customers/$id"
+                  params={{ id: d.customer_id }}
+                  className="flex items-center justify-between py-3 hover:bg-accent/40 rounded-xl -mx-2 px-2 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar name={d.name} />
+                    <div>
+                      <div className="font-medium text-sm">{d.name}</div>
+                      <div className="text-xs text-muted-foreground">{d.phone ?? "—"}</div>
+                    </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold text-destructive">{formatMoney(d.balance)}</div>
+                    <div className="font-semibold text-[#E4574A]">{formatMoney(d.balance)}</div>
                   </div>
                 </Link>
               ))}
@@ -130,14 +173,14 @@ function DashboardPage() {
           </Card>
 
           <Card>
-            <CardHeader icon={AlertTriangle} title="Bidhaa zinaisha" href="/inventory" />
-            <div className="divide-y divide-border">
+            <CardHeader icon={AlertTriangle} iconBg="bg-[#FFF1DE] text-[#F5A623]" title="Bidhaa zinaisha" href="/inventory" />
+            <div className="divide-y divide-border/60">
               {(lowStock ?? []).length === 0 && <EmptyRow msg="Vyote viko sawa." />}
               {(lowStock ?? []).map((p) => (
                 <div key={p.id} className="flex items-center justify-between py-3">
                   <div className="text-sm font-medium">{p.name}</div>
                   <div className="text-xs">
-                    <span className={p.current_stock === 0 ? "text-destructive font-semibold" : "text-warning-foreground"}>
+                    <span className={p.current_stock === 0 ? "text-[#E4574A] font-semibold" : "text-[#F5A623] font-semibold"}>
                       {p.current_stock}
                     </span>
                     <span className="text-muted-foreground"> / min {p.minimum_stock}</span>
@@ -148,29 +191,49 @@ function DashboardPage() {
           </Card>
 
           <Card>
-            <CardHeader icon={TrendingUp} title="Bidhaa zinauzwa zaidi" href="/reports" />
-            <div className="divide-y divide-border">
+            <CardHeader icon={TrendingUp} iconBg="bg-[#E4F7EC] text-[#2FAE60]" title="Bidhaa zinauzwa zaidi" href="/reports" />
+            <div className="divide-y divide-border/60">
               {(bestSellers ?? []).length === 0 && <EmptyRow msg="Bado hakuna mauzo." />}
-              {(bestSellers ?? []).map((b) => (
+              {(bestSellers ?? []).map((b, i) => (
                 <div key={b.product_id} className="flex items-center justify-between py-3">
-                  <div className="text-sm font-medium truncate">{b.product_name}</div>
-                  <div className="text-xs text-muted-foreground">{b.units_sold} u · {formatMoney(b.revenue)}</div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#16294A] text-[11px] font-semibold text-white">
+                      {i + 1}
+                    </span>
+                    <div className="text-sm font-medium truncate">{b.product_name}</div>
+                  </div>
+                  <div className="text-xs text-muted-foreground shrink-0 pl-2">{b.units_sold} u · {formatMoney(b.revenue)}</div>
                 </div>
               ))}
             </div>
           </Card>
 
           <Card className="lg:col-span-2">
-            <CardHeader icon={Receipt} title="Mauzo ya hivi karibuni" href="/sales" />
-            <div className="divide-y divide-border">
+            <CardHeader icon={Package} iconBg="bg-[#DCEBFF] text-[#2E6BE6]" title="Mauzo ya hivi karibuni" href="/sales" />
+            <div className="divide-y divide-border/60">
               {(recentSales ?? []).length === 0 && <EmptyRow msg="Bado hakuna mauzo." />}
               {(recentSales ?? []).map((s) => (
-                <Link key={s.id} to="/sales/$id" params={{ id: s.id }} className="flex items-center justify-between py-3 hover:bg-accent/40 -mx-4 px-4">
-                  <div>
-                    <div className="text-sm font-medium">#{s.receipt_number}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString()} · {s.sale_type === "credit" ? "Deni" : s.payment_method === "lipa_namba" ? "Lipa Namba" : "Cash"}</div>
+                <Link
+                  key={s.id}
+                  to="/sales/$id"
+                  params={{ id: s.id }}
+                  className="flex items-center justify-between py-3 hover:bg-accent/40 rounded-xl -mx-2 px-2 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F4F6F9]">
+                      <Receipt className="h-4 w-4 text-[#16294A]" />
+                    </span>
+                    <div>
+                      <div className="text-sm font-medium">#{s.receipt_number}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(s.created_at).toLocaleString()} · {s.sale_type === "credit" ? "Deni" : s.payment_method === "lipa_namba" ? "Lipa Namba" : "Cash"}
+                      </div>
+                    </div>
                   </div>
-                  <div className="font-semibold">{formatMoney(s.total)}</div>
+                  <div className="flex items-center gap-1 font-semibold">
+                    {formatMoney(s.total)}
+                    <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
                 </Link>
               ))}
             </div>
@@ -182,28 +245,104 @@ function DashboardPage() {
 }
 
 // ----- Helpers -----
-function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+
+const VARIANT_STYLES = {
+  dark: {
+    card: "bg-[#16294A] text-white border-transparent",
+    label: "text-white/70",
+    sub: "text-white/70",
+    iconWrap: "bg-white/10 text-white",
+  },
+  mint: {
+    card: "bg-white border-border",
+    label: "text-muted-foreground",
+    sub: "text-muted-foreground",
+    iconWrap: "bg-[#E4F7EC] text-[#2FAE60]",
+  },
+  amber: {
+    card: "bg-white border-border",
+    label: "text-muted-foreground",
+    sub: "text-muted-foreground",
+    iconWrap: "bg-[#FFF1DE] text-[#F5A623]",
+  },
+  rose: {
+    card: "bg-white border-border",
+    label: "text-muted-foreground",
+    sub: "text-muted-foreground",
+    iconWrap: "bg-[#FDE7E5] text-[#E4574A]",
+  },
+} as const;
+
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  variant = "mint",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  variant?: keyof typeof VARIANT_STYLES;
+}) {
+  const v = VARIANT_STYLES[variant];
   return (
-    <div className={`card-elev p-4 lg:p-5 ${accent ? "bg-primary text-primary-foreground border-transparent" : ""}`}>
-      <div className={`text-xs font-medium uppercase tracking-wide ${accent ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{label}</div>
-      <div className="stat-number mt-2">{value}</div>
-      {sub && <div className={`text-xs mt-1 ${accent ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{sub}</div>}
+    <div className={`rounded-2xl border p-4 lg:p-5 shadow-sm ${v.card}`}>
+      <div className="flex items-start justify-between">
+        <div className={`text-xs font-medium uppercase tracking-wide ${v.label}`}>{label}</div>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-full ${v.iconWrap}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-3 text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
+      {sub && <div className={`text-xs mt-1 ${v.sub}`}>{sub}</div>}
     </div>
   );
 }
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`card-elev p-4 lg:p-5 ${className}`}>{children}</div>;
+function Avatar({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0]?.toUpperCase())
+    .join("");
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#16294A]/10 text-[11px] font-semibold text-[#16294A]">
+      {initials || "?"}
+    </span>
+  );
 }
 
-function CardHeader({ icon: Icon, title, href }: { icon: React.ComponentType<{ className?: string }>; title: string; href?: string }) {
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`rounded-2xl border border-border bg-white p-4 lg:p-5 shadow-sm ${className}`}>{children}</div>;
+}
+
+function CardHeader({
+  icon: Icon,
+  iconBg,
+  title,
+  href,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  title: string;
+  href?: string;
+}) {
   return (
     <div className="flex items-center justify-between mb-2">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-primary" />
+      <div className="flex items-center gap-2.5">
+        <span className={`flex h-8 w-8 items-center justify-center rounded-full ${iconBg}`}>
+          <Icon className="h-4 w-4" />
+        </span>
         <h3 className="font-semibold text-sm">{title}</h3>
       </div>
-      {href && <Link to={href} className="text-xs text-primary hover:underline">Ona vyote →</Link>}
+      {href && (
+        <Link to={href} className="flex items-center gap-1 text-xs font-medium text-[#2E6BE6] hover:underline">
+          Ona vyote <ArrowUpRight className="h-3 w-3" />
+        </Link>
+      )}
     </div>
   );
 }
