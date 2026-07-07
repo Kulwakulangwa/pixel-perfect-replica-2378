@@ -16,6 +16,8 @@ import {
   Menu,
   X,
   Store,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +45,31 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [userRole, setUserRole] = useState<"owner" | "cashier" | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- Dark mode state & effect ---
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("theme") as "light" | "dark" | null;
+      if (stored) return stored;
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
+    }
+    return "light";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  // --- User role fetch ---
   useEffect(() => {
     let cancelled = false;
     const fetchUserRole = async () => {
@@ -104,10 +131,9 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     );
   }
 
-  const filteredNavItems = navItems.filter(item =>
+  const filteredNavItems = navItems.filter((item) =>
     item.roles.includes(userRole)
   );
-
 
   return (
     <div className="flex min-h-screen bg-background" suppressHydrationWarning>
@@ -191,20 +217,40 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
               {userRole === "owner" ? "Meneja" : "Cashier"}
             </span>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="lg:hidden">
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="rounded-full p-2 text-muted-foreground hover:bg-accent transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="lg:hidden">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </header>
 
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   );
 }
 
-export function PageHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
