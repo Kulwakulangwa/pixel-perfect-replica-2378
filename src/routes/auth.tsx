@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Store, Loader2 } from "lucide-react";
+import { Store, Loader2, Sun, Moon } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -18,6 +18,31 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // --- Dark mode state (mirrors AppShell) ---
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("theme") as "light" | "dark" | null;
+      if (stored) return stored;
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
+    }
+    return "light";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  // --- Auth logic ---
   // Check if already logged in
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -65,20 +90,33 @@ function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-accent/40 px-4 py-10">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
+      <div className="w-full max-w-md relative">
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          className="absolute top-0 right-0 rounded-full p-2 text-muted-foreground hover:bg-accent transition-colors"
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </button>
+
         <div className="flex flex-col items-center mb-6">
           <div className="h-14 w-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-elev-2 mb-3">
             <Store className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Wakuja Shop</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Wakuja Shop</h1>
           <p className="text-sm text-muted-foreground mt-1">Ingia kuendelea</p>
         </div>
 
-        <div className="card-elev card-elev-2 p-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Barua pepe</Label>
+              <Label htmlFor="email" className="text-foreground">Barua pepe</Label>
               <Input
                 id="email"
                 type="email"
@@ -87,10 +125,11 @@ function AuthPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="email"
+                className="bg-background border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Neno la siri</Label>
+              <Label htmlFor="password" className="text-foreground">Neno la siri</Label>
               <Input
                 id="password"
                 type="password"
@@ -99,6 +138,7 @@ function AuthPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                className="bg-background border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
             <Button type="submit" disabled={busy} className="w-full h-11 text-base">
