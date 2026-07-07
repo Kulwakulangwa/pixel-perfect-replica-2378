@@ -24,7 +24,7 @@ type TodaySale = {
   receipt_number: string;
   total: number;
   payment_method: string;
-  sale_type: string;
+  sale_type: string; // 'cash' or 'credit'
   customer_id: string | null;
   cashier_id: string;
   created_at: string;
@@ -48,8 +48,7 @@ function TodayPage() {
     setDateDescription(format(new Date(), "EEEE, dd MMMM yyyy"));
   }, []);
 
-  // Get user
-  const { data: user, isLoading: userLoading, error: userError } = useQuery({
+  const { data: user } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
@@ -58,8 +57,7 @@ function TodayPage() {
     },
   });
 
-  // Get staff (only after user)
-  const { data: staff, isLoading: staffLoading, error: staffError } = useQuery({
+  const { data: staff } = useQuery({
     queryKey: ["currentStaff"],
     queryFn: async () => {
       if (!user) return null;
@@ -74,8 +72,8 @@ function TodayPage() {
     enabled: !!user,
   });
 
-  // Fetch today's sales (only after staff is loaded)
-  const { data, isLoading: salesLoading, error: salesError } = useQuery({
+  // Fetch today's sales
+  const { data, isLoading, error } = useQuery({
     queryKey: ["todaySales"],
     queryFn: async () => {
       if (!staff) return null;
@@ -83,6 +81,7 @@ function TodayPage() {
       const from = startOfToday().toISOString();
       const to = endOfToday().toISOString();
 
+      // First: fetch all sales with cashier_id
       const { data: sales, error: salesError } = await supabase
         .from("sales")
         .select(`
@@ -103,7 +102,7 @@ function TodayPage() {
 
       if (salesError) throw salesError;
 
-      // Fetch cashier names
+      // Second: fetch cashier names for all unique cashier_ids
       const cashierIds = [...new Set(sales?.map(s => s.cashier_id).filter(Boolean))];
       let cashierNames: Record<string, string> = {};
       if (cashierIds.length > 0) {
@@ -119,18 +118,20 @@ function TodayPage() {
         }
       }
 
+      // Attach cashier name to each sale
       const enrichedSales = sales?.map(sale => ({
         ...sale,
         cashier_name: cashierNames[sale.cashier_id] || sale.cashier_id.slice(0, 8),
       })) || [];
 
+      // --- FIX: Use sale_type for cash/credit distinction ---
       const totalRevenue = enrichedSales.reduce((sum, s) => sum + s.total, 0) || 0;
       const totalSales = enrichedSales.length || 0;
       const totalCash = enrichedSales
-        .filter(s => s.payment_method === "cash")
+        .filter(s => s.sale_type === 'cash')
         .reduce((sum, s) => sum + s.total, 0) || 0;
       const totalCredit = enrichedSales
-        .filter(s => s.payment_method === "credit")
+        .filter(s => s.sale_type === 'credit')
         .reduce((sum, s) => sum + s.total, 0) || 0;
       const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
 
@@ -145,12 +146,8 @@ function TodayPage() {
         },
       };
     },
-    enabled: !!staff, // only run when staff is loaded
+    enabled: !!staff,
   });
-
-  // Determine loading states
-  const isLoading = userLoading || staffLoading || salesLoading;
-  const hasError = userError || staffError || salesError;
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("sw-TZ", {
@@ -161,7 +158,7 @@ function TodayPage() {
 
   const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
 
-  // --- Stat card component ---
+  // --- Stat card component (mirrors dashboard) ---
   const STAT_STYLES = {
     dark: {
       card: "bg-[#16294A] dark:bg-[#0a1628] text-white dark:text-slate-200 border-transparent",
@@ -213,7 +210,7 @@ function TodayPage() {
     );
   }
 
-  // --- Render states ---
+  // --- Loading & error states ---
   if (isLoading) {
     return (
       <AppShell>
@@ -224,11 +221,10 @@ function TodayPage() {
     );
   }
 
-  if (hasError || !data) {
-    const errorMsg = userError?.message || staffError?.message || salesError?.message || "Unknown error";
+  if (error || !data) {
     return (
       <AppShell>
-        <div className="text-red-500 p-4">Imeshindwa kupakia mauzo ya leo: {errorMsg}</div>
+        <div className="text-red-500 p-4">Imeshindwa kupakia mauzo ya leo. Jaribu tena.</div>
       </AppShell>
     );
   }
@@ -240,6 +236,7 @@ function TodayPage() {
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Mauzo ya Leo" description={dateDescription} />
 
+        {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             label="Jumla ya Mauzo"
@@ -268,6 +265,7 @@ function TodayPage() {
           />
         </div>
 
+        {/* Sales Table */}
         <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
           <Table>
             <TableHeader>
@@ -298,12 +296,12 @@ function TodayPage() {
                     <TableCell>
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          sale.payment_method === "cash"
+                          sale.sale_type === 'cash'
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                             : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                         }`}
                       >
-                        {sale.payment_method === "cash" ? "Fedha" : "Mkopo"}
+                        {sale.sale_type === 'cash' ? 'Fedha' : 'Mkopo'}
                       </span>
                     </TableCell>
                     <TableCell>{formatTime(sale.created_at)}</TableCell>
