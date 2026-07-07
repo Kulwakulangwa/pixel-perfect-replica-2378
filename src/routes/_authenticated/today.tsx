@@ -27,6 +27,7 @@ type TodaySale = {
   payment_method: string;
   sale_type: string;
   customer_id: string | null;
+  cashier_id: string;
   created_at: string;
   customers: {
     name: string | null;
@@ -47,14 +48,10 @@ function TodayPage() {
     setDateDescription(format(new Date(), "EEEE, dd MMMM yyyy"));
   }, []);
 
-  // We still need the staff query to get the shop_id, but we no longer filter by cashier_id.
   const { data: user } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
       if (error) throw error;
       return user;
     },
@@ -75,31 +72,29 @@ function TodayPage() {
     enabled: !!user,
   });
 
-  // Fetch today's sales – no cashier filter, everyone sees all sales.
+  // Fetch today's sales
   const { data, isLoading, error } = useQuery({
-    queryKey: ["todaySales"], // we remove staff.id from key since it no longer matters
+    queryKey: ["todaySales"],
     queryFn: async () => {
       if (!staff) return null;
       const today = new Date();
       const from = startOfToday().toISOString();
       const to = endOfToday().toISOString();
 
-      // No cashier filter – get all sales for the shop.
-      // RLS will restrict to the current shop automatically (via shop_id policies).
+      // First: fetch all sales with cashier_id
       const { data: sales, error: salesError } = await supabase
         .from("sales")
-        .select(
-          `
+        .select(`
           id,
           receipt_number,
           total,
           payment_method,
           sale_type,
           customer_id,
+          cashier_id,
           created_at,
           customers ( name )
-        `
-        )
+        `)
         .gte("created_at", from)
         .lte("created_at", to)
         .eq("status", "completed")
@@ -107,17 +102,40 @@ function TodayPage() {
 
       if (salesError) throw salesError;
 
-      const totalRevenue = sales?.reduce((sum, s) => sum + s.total, 0) || 0;
-      const totalSales = sales?.length || 0;
-      const totalCash =
-        sales?.filter((s) => s.payment_method === "cash").reduce((sum, s) => sum + s.total, 0) || 0;
-      const totalCredit =
-        sales?.filter((s) => s.payment_method === "credit").reduce((sum, s) => sum + s.total, 0) ||
-        0;
+      // Second: fetch cashier names for all unique cashier_ids
+      const cashierIds = [...new Set(sales?.map(s => s.cashier_id).filter(Boolean))];
+      let cashierNames: Record<string, string> = {};
+      if (cashierIds.length > 0) {
+        const { data: staffData, error: staffError } = await supabase
+          .from("staff")
+          .select("id, full_name")
+          .in("id", cashierIds);
+        if (!staffError) {
+          cashierNames = staffData.reduce((acc, cur) => {
+            acc[cur.id] = cur.full_name || cur.id;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+
+      // Attach cashier name to each sale
+      const enrichedSales = sales?.map(sale => ({
+        ...sale,
+        cashier_name: cashierNames[sale.cashier_id] || sale.cashier_id,
+      })) || [];
+
+      const totalRevenue = enrichedSales.reduce((sum, s) => sum + s.total, 0) || 0;
+      const totalSales = enrichedSales.length || 0;
+      const totalCash = enrichedSales
+        .filter(s => s.payment_method === "cash")
+        .reduce((sum, s) => sum + s.total, 0) || 0;
+      const totalCredit = enrichedSales
+        .filter(s => s.payment_method === "credit")
+        .reduce((sum, s) => sum + s.total, 0) || 0;
       const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
 
       return {
-        sales: sales || [],
+        sales: enrichedSales,
         summary: {
           total_revenue: totalRevenue,
           total_sales: totalSales,
@@ -214,12 +232,13 @@ function TodayPage() {
               <TableHead>Jumla</TableHead>
               <TableHead>Malipo</TableHead>
               <TableHead>Saa</TableHead>
+              <TableHead>Aliyeuza</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sales.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Hakuna mauzo leo.
                 </TableCell>
               </TableRow>
@@ -237,6 +256,7 @@ function TodayPage() {
                     </span>
                   </TableCell>
                   <TableCell>{formatTime(sale.created_at)}</TableCell>
+                  <TableCell className="text-sm">{sale.cashier_name}</TableCell>
                 </TableRow>
               ))
             )}
