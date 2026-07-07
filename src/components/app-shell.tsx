@@ -39,23 +39,17 @@ type AppShellProps = {
 export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const navigate = useNavigate();
   const router = useRouter();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [userRole, setUserRole] = useState<"owner" | "cashier">("cashier");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userRole, setUserRole] = useState<"owner" | "cashier" | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    let isMounted = true;
+    let cancelled = false;
     const fetchUserRole = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          navigate({ to: "/auth" });
+          if (!cancelled) navigate({ to: "/auth" });
           return;
         }
         const { data: staff, error } = await supabase
@@ -63,34 +57,25 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           .select("role")
           .eq("id", session.user.id)
           .maybeSingle();
+        if (cancelled) return;
         if (error) {
-          console.warn("Staff fetch error, defaulting to cashier:", error);
-          if (isMounted) setUserRole("cashier");
-        } else if (staff) {
-          if (isMounted) setUserRole(staff.role as "owner" | "cashier");
+          console.error("Staff fetch error:", error);
+          setUserRole("cashier");
         } else {
-          if (isMounted) setUserRole("cashier");
+          setUserRole((staff?.role as "owner" | "cashier") ?? "cashier");
         }
       } catch (err) {
         console.error("Error fetching user role:", err);
-        if (isMounted) setUserRole("cashier");
+        if (!cancelled) setUserRole("cashier");
       } finally {
-        if (isMounted) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    const timeoutId = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn("Role fetch timed out, defaulting to cashier");
-        setUserRole("cashier");
-        setLoading(false);
-      }
-    }, 2000);
     fetchUserRole();
     return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
+      cancelled = true;
     };
-  }, [mounted, navigate]);
+  }, [navigate]);
 
   useEffect(() => {
     if (!loading && userRole === "cashier" && requireOwner) {
@@ -103,7 +88,15 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     navigate({ to: "/auth" });
   };
 
-  if (!mounted || loading) {
+  if (loading || userRole === null) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (requireOwner && userRole !== "owner") {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -112,8 +105,9 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   }
 
   const filteredNavItems = navItems.filter(item =>
-    item.roles.includes(userRole as any)
+    item.roles.includes(userRole)
   );
+
 
   return (
     <div className="flex min-h-screen bg-background" suppressHydrationWarning>
