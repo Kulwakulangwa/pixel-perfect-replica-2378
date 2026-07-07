@@ -72,6 +72,14 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
+  // Close sidebar on route change
+  useEffect(() => {
+    const unsub = router.subscribe("onResolved", () => {
+      setIsSidebarOpen(false);
+    });
+    return unsub;
+  }, [router]);
+
   // User data
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +87,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          if (!cancelled) navigate({ to: "/auth", replace: true });
+          if (!cancelled) navigate({ to: "/auth" });
           return;
         }
         setUserEmail(session.user.email || "");
@@ -159,7 +167,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Profile Section */}
         <div className="flex flex-col items-center px-4 py-6 border-b">
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
             <User className="h-8 w-8" />
@@ -170,7 +177,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           </div>
         </div>
 
-        {/* Navigation */}
         <div className="px-3 py-4 h-[calc(100vh-12rem)] flex flex-col">
           <nav className="space-y-1 flex-1">
             {filteredNavItems.map((item) => {
@@ -194,7 +200,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
             })}
           </nav>
 
-          {/* Bottom actions */}
           <div className="pt-4 border-t space-y-2">
             <button
               onClick={toggleTheme}
@@ -223,7 +228,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile header */}
-        <header className="lg:hidden flex h-16 items-center justify-between border-b px-4">
+        <header className="lg:hidden flex h-16 items-center justify-between border-b px-4 bg-background/95 backdrop-blur sticky top-0 z-30">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -252,7 +257,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           </div>
         </header>
 
-        {/* Content – reduced padding and wider max-width */}
         <main className="flex-1 overflow-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
