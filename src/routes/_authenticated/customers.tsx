@@ -128,7 +128,7 @@ const fetchCustomerSales = async (customerId: string): Promise<CustomerSale[]> =
 const fetchCustomerPayments = async (customerId: string): Promise<CustomerPayment[]> => {
   const { data, error } = await supabase
     .from("customer_payments")
-    .select("*")
+    .select("id, amount, payment_date, note") // payment_date now exists
     .eq("customer_id", customerId)
     .order("payment_date", { ascending: false });
   if (error) throw error;
@@ -145,23 +145,21 @@ const addCustomer = async (name: string, phone?: string) => {
   if (error) throw error;
 };
 
-// --- Fixed recordPayment: adds shop_id, recorded_by, payment_method ---
 const recordPayment = async (
   customerId: string,
   amount: number,
   paymentDate: string,
   note?: string,
 ) => {
-  // Get current shop_id
   const { data: shopId, error: shopError } = await supabase.rpc("current_shop_id");
   if (shopError) throw shopError;
   if (!shopId) throw new Error("No shop found.");
 
-  // Get logged-in user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!user) throw new Error("Not logged in.");
 
+  // Now we have the payment_date column
   const { error } = await supabase
     .from("customer_payments")
     .insert([{
@@ -169,9 +167,9 @@ const recordPayment = async (
       shop_id: shopId,
       recorded_by: user.id,
       amount,
-      payment_date: paymentDate,
+      payment_date: paymentDate, // now inserted correctly
       note: note || null,
-      payment_method: "cash", // default; could be made selectable later
+      payment_method: "cash",
     }]);
   if (error) throw error;
 };
