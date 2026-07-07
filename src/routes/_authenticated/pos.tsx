@@ -453,69 +453,103 @@ function PosPage() {
   function ReceiptPreview({ sale, onClose }: { sale: ReceiptSale; onClose: () => void }) {
     return (
       <Dialog open onOpenChange={onClose}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Risiti ya Mauzo</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 font-mono text-sm">
-            <div className="text-center border-b pb-2">
-              <div className="font-bold text-lg">Wakuja Shop</div>
-              <div className="text-xs text-muted-foreground">Risiti #{sale.receipt_number}</div>
-              <div className="text-xs text-muted-foreground">
+        <DialogContent className="max-w-sm rounded-2xl p-0 overflow-hidden">
+          <div className="bg-blue-600 px-6 pt-6 pb-5 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-white text-base font-medium">
+                Risiti ya Mauzo
+              </DialogTitle>
+            </DialogHeader>
+            <div className="mt-3 text-center">
+              <div className="font-semibold text-lg tracking-tight">Wakuja Shop</div>
+              <div className="text-xs text-blue-100 mt-1">Risiti #{sale.receipt_number}</div>
+              <div className="text-xs text-blue-100">
                 {format(new Date(sale.created_at), "dd/MM/yyyy HH:mm")}
               </div>
             </div>
-            <div>
+          </div>
+
+          <div className="px-6 py-5 space-y-4 text-sm">
+            <div className="divide-y divide-border">
               {sale.items.map((item: CartItem) => (
-                <div key={item.product_id} className="flex justify-between py-1">
-                  <span>
-                    {item.product_name} x{item.quantity}
+                <div key={item.product_id} className="flex justify-between py-1.5">
+                  <span className="text-foreground/90">
+                    {item.product_name}
+                    <span className="text-muted-foreground"> &times;{item.quantity}</span>
                   </span>
-                  <span>{formatCurrency(item.line_total)}</span>
+                  <span className="tabular-nums font-medium">
+                    {formatCurrency(item.line_total)}
+                  </span>
                 </div>
               ))}
             </div>
-            <div className="border-t pt-2 space-y-1">
-              <div className="flex justify-between">
+
+            <div className="border-t border-dashed border-border pt-3 space-y-1.5">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Jumla ndogo</span>
-                <span>{formatCurrency(sale.subtotal)}</span>
+                <span className="tabular-nums">{formatCurrency(sale.subtotal)}</span>
               </div>
               {sale.discount > 0 && (
-                <div className="flex justify-between text-green-600">
+                <div className="flex justify-between text-emerald-600">
                   <span>Punguzo</span>
-                  <span>-{formatCurrency(sale.discount)}</span>
+                  <span className="tabular-nums">-{formatCurrency(sale.discount)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-lg">
-                <span>Jumla</span>
-                <span>{formatCurrency(sale.total)}</span>
+              <div className="flex justify-between items-baseline pt-1">
+                <span className="font-semibold">Jumla</span>
+                <span className="font-semibold text-xl tabular-nums">
+                  {formatCurrency(sale.total)}
+                </span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-muted-foreground pt-1">
                 <span>Malipo</span>
-                <span>{sale.payment_method === "cash" ? "Fedha" : "Mkopo"}</span>
+                <span className="font-medium text-foreground">
+                  {sale.payment_method === "cash" ? "Fedha" : "Mkopo"}
+                </span>
               </div>
               {sale.customer && (
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-muted-foreground">
                   <span>Mteja</span>
-                  <span>{sale.customer.name}</span>
-                </div>
-              )}
-              {sale.payment_method === "credit" && sale.customer && (
-                <div className="flex justify-between text-sm text-red-600 font-bold">
-                  <span>Malipo yajayo</span>
-                  <span>{formatCurrency(sale.customer.balance + sale.total)}</span>
+                  <span className="font-medium text-foreground">{sale.customer.name}</span>
                 </div>
               )}
             </div>
-            <div className="text-center text-xs text-muted-foreground border-t pt-2">
-              {sale.synced ? "✓ Imesambazwa" : "⏳ Inasubiri mtandao"}
+
+            {sale.payment_method === "credit" && sale.customer && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-amber-800 text-sm font-medium">Malipo yajayo</span>
+                  <span className="text-amber-900 font-semibold tabular-nums">
+                    {formatCurrency(sale.customer.balance + sale.total)}
+                  </span>
+                </div>
+                <p className="text-xs text-amber-700 mt-1">
+                  Salio la deni lote la {sale.customer.name}
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground pt-1">
+              {sale.synced ? (
+                <>
+                  <Check className="h-3 w-3 text-emerald-600" /> Imesambazwa
+                </>
+              ) : (
+                <>
+                  <Loader2 className="h-3 w-3" /> Inasubiri mtandao
+                </>
+              )}
             </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>
+
+          <div className="flex gap-2 px-6 pb-6">
+            <Button variant="outline" className="flex-1 rounded-xl" onClick={onClose}>
               Funga
             </Button>
-            <Button onClick={() => window.print()}>
+            <Button
+              className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => window.print()}
+            >
               <Printer className="h-4 w-4 mr-2" /> Chapisha
             </Button>
           </div>
@@ -535,21 +569,21 @@ function PosPage() {
   return (
     <AppShell>
       <PageHeader
-        title="POS - Sehemu ya Mauzo"
+        title="POS — Sehemu ya Mauzo"
         description="Chagua bidhaa, ongeza kwenye mkokoteni, na maliza mauzo."
         action={
           <div className="flex items-center gap-2">
             {isOnline ? (
-              <Badge variant="outline" className="gap-1">
+              <Badge className="gap-1.5 rounded-full border-0 bg-blue-50 text-blue-700 font-medium px-3 py-1">
                 <Wifi className="h-3 w-3" /> Mtandao
               </Badge>
             ) : (
-              <Badge variant="destructive" className="gap-1">
+              <Badge className="gap-1.5 rounded-full border-0 bg-red-50 text-red-700 font-medium px-3 py-1">
                 <WifiOff className="h-3 w-3" /> Nje ya mtandao
               </Badge>
             )}
             {offlineCount > 0 && (
-              <Badge variant="secondary" className="gap-1">
+              <Badge className="gap-1.5 rounded-full border-0 bg-amber-50 text-amber-700 font-medium px-3 py-1">
                 {syncing ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
@@ -562,59 +596,68 @@ function PosPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left column */}
         <div className="lg:col-span-2 space-y-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               ref={inputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tafuta bidhaa (Ctrl+K)..."
-              className="pl-9"
+              className="pl-11 h-11 rounded-xl border-border/80 bg-card shadow-sm focus-visible:ring-blue-500"
             />
           </div>
-          <ScrollArea className="h-[60vh] border rounded-lg">
+          <ScrollArea className="h-[60vh] rounded-2xl border border-border/70 bg-muted/20">
             {productsLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin" />
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
               </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-12 text-muted-foreground text-sm">
                 Hakuna bidhaa zilizopatikana.
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2">
-                {filteredProducts.map((product) => (
-                  <button
-                    key={product.id}
-                    onClick={() => addToCart(product)}
-                    className="border rounded-lg p-3 text-left hover:bg-accent transition-colors disabled:opacity-50 flex flex-col items-center"
-                    disabled={product.current_stock <= 0}
-                  >
-                    {product.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-16 h-16 object-cover rounded-md mb-2"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-md mb-2 bg-muted flex items-center justify-center text-muted-foreground text-xs">
-                        Hakuna
-                      </div>
-                    )}
-                    <div className="font-medium text-sm text-center">{product.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatCurrency(product.selling_price)}
-                    </div>
-                    <div
-                      className={`text-xs ${product.current_stock <= product.minimum_stock ? "text-red-500" : "text-green-600"}`}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3">
+                {filteredProducts.map((product) => {
+                  const lowStock = product.current_stock <= product.minimum_stock;
+                  return (
+                    <button
+                      key={product.id}
+                      onClick={() => addToCart(product)}
+                      className="group rounded-2xl border border-border/70 bg-card p-3 text-left transition-all hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:shadow-none flex flex-col items-center"
+                      disabled={product.current_stock <= 0}
                     >
-                      Stock: {product.current_stock}
-                    </div>
-                  </button>
-                ))}
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className="w-16 h-16 object-cover rounded-xl mb-2"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl mb-2 bg-blue-50 flex items-center justify-center text-blue-300 text-xs font-medium">
+                          {product.name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="font-medium text-sm text-center leading-snug line-clamp-2">
+                        {product.name}
+                      </div>
+                      <div className="text-sm text-foreground/80 font-medium mt-1 tabular-nums">
+                        {formatCurrency(product.selling_price)}
+                      </div>
+                      <span
+                        className={`mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                          lowStock
+                            ? "bg-red-50 text-red-600"
+                            : "bg-emerald-50 text-emerald-700"
+                        }`}
+                      >
+                        Stock: {product.current_stock}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
@@ -622,58 +665,62 @@ function PosPage() {
 
         {/* Right column: Cart */}
         <div className="space-y-4">
-          <div className="border rounded-lg p-4 h-[60vh] flex flex-col">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="font-semibold">Mkokoteni</h3>
-              <Badge variant="secondary">{cart.length} bidhaa</Badge>
+          <div className="rounded-2xl border border-border/70 bg-card shadow-sm p-4 h-[60vh] flex flex-col">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-semibold text-base">Mkokoteni</h3>
+              <Badge className="rounded-full border-0 bg-blue-50 text-blue-700 font-medium">
+                {cart.length} bidhaa
+              </Badge>
             </div>
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 -mx-1 px-1">
               {cart.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  <ShoppingCart className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  Mkokoteni uko wazi
+                <div className="text-center text-muted-foreground py-10">
+                  <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Mkokoteni uko wazi</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {cart.map((item) => (
                     <div
                       key={item.product_id}
-                      className="flex items-center justify-between bg-muted/30 p-2 rounded"
+                      className="flex items-center justify-between bg-muted/40 rounded-xl p-2.5"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{item.product_name}</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground tabular-nums">
                           {formatCurrency(item.unit_price)}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 bg-card rounded-full border border-border/70 px-1">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-6 w-6 rounded-full"
                           onClick={() => updateQuantity(item.product_id, -1)}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
-                        <span className="w-6 text-center text-sm">{item.quantity}</span>
+                        <span className="w-5 text-center text-sm tabular-nums">
+                          {item.quantity}
+                        </span>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-6 w-6 rounded-full"
                           onClick={() => updateQuantity(item.product_id, 1)}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-red-500"
-                          onClick={() => removeItem(item.product_id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
                       </div>
-                      <div className="text-sm font-medium ml-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 ml-1 text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => removeItem(item.product_id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                      <div className="text-sm font-medium ml-2 tabular-nums w-16 text-right">
                         {formatCurrency(item.line_total)}
                       </div>
                     </div>
@@ -683,31 +730,33 @@ function PosPage() {
             </ScrollArea>
 
             {/* Totals */}
-            <div className="border-t pt-3 space-y-1">
-              <div className="flex justify-between text-sm">
+            <div className="border-t border-dashed border-border pt-3 space-y-1.5 mt-2">
+              <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Jumla ndogo</span>
-                <span>{formatCurrency(subtotal)}</span>
+                <span className="tabular-nums">{formatCurrency(subtotal)}</span>
               </div>
               {discount > 0 && (
-                <div className="flex justify-between text-sm text-green-600">
+                <div className="flex justify-between text-sm text-emerald-600">
                   <span>Punguzo</span>
-                  <span>-{formatCurrency(discount)}</span>
+                  <span className="tabular-nums">-{formatCurrency(discount)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-lg">
-                <span>Jumla</span>
-                <span>{formatCurrency(total)}</span>
+              <div className="flex justify-between items-baseline">
+                <span className="font-semibold">Jumla</span>
+                <span className="font-semibold text-xl tabular-nums">
+                  {formatCurrency(total)}
+                </span>
               </div>
             </div>
 
             {/* Checkout controls */}
-            <div className="border-t pt-3 space-y-2">
+            <div className="border-t border-border/70 pt-3 mt-3 space-y-2.5">
               <div className="flex gap-2">
                 <Select
                   value={paymentMethod}
                   onValueChange={(v: "cash" | "credit") => setPaymentMethod(v)}
                 >
-                  <SelectTrigger className="flex-1">
+                  <SelectTrigger className="flex-1 rounded-xl h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -728,7 +777,7 @@ function PosPage() {
                       setSelectedCustomer(customer || null);
                     }}
                   >
-                    <SelectTrigger className="flex-1">
+                    <SelectTrigger className="flex-1 rounded-xl h-10">
                       <SelectValue placeholder="Chagua mteja" />
                     </SelectTrigger>
                     <SelectContent>
@@ -743,26 +792,35 @@ function PosPage() {
               </div>
 
               {staffData?.can_discount && (
-                <div className="flex gap-2 items-center">
-                  <Label className="text-sm whitespace-nowrap">Punguzo:</Label>
+                <div className="flex gap-2 items-center bg-muted/30 rounded-xl px-3 py-2">
+                  <Label className="text-sm whitespace-nowrap text-muted-foreground">
+                    Punguzo
+                  </Label>
                   <Input
                     type="number"
                     min="0"
                     max={subtotal}
                     value={discount}
                     onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-                    className="w-24"
+                    className="w-24 h-8 rounded-lg bg-card"
                   />
-                  <span className="text-sm text-muted-foreground">{formatCurrency(discount)}</span>
+                  <span className="text-sm text-muted-foreground ml-auto tabular-nums">
+                    {formatCurrency(discount)}
+                  </span>
                 </div>
               )}
 
               <div className="flex gap-2">
-                <Button variant="outline" onClick={clearCart} disabled={cart.length === 0}>
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={clearCart}
+                  disabled={cart.length === 0}
+                >
                   Futa
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="flex-1 rounded-xl h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm"
                   onClick={handleCheckout}
                   disabled={
                     cart.length === 0 ||
@@ -770,7 +828,7 @@ function PosPage() {
                     (paymentMethod === "credit" && !selectedCustomer)
                   }
                 >
-                  {isCheckingOut ? <Loader2 className="animate-spin" /> : null}
+                  {isCheckingOut ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
                   {isCheckingOut ? "Inahifadhi..." : "Maliza Mauzo"}
                 </Button>
               </div>
