@@ -22,7 +22,7 @@ function AuthPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate({ to: "/" });
+        navigate({ to: "/", replace: true });
       }
     });
   }, [navigate]);
@@ -30,7 +30,7 @@ function AuthPage() {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session) {
-        navigate({ to: "/" });
+        navigate({ to: "/", replace: true });
       }
     });
     return () => sub.subscription.unsubscribe();
@@ -40,9 +40,23 @@ function AuthPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
       if (error) throw error;
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) {
+        throw new Error("Login succeeded but the session is not ready yet. Please wait a moment and try again.");
+      }
+
       toast.success("Karibu tena!");
+      navigate({ to: "/", replace: true });
     } catch (err) {
       toast.error((err as Error).message || "Kuna tatizo. Jaribu tena.");
     } finally {

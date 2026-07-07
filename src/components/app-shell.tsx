@@ -79,7 +79,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          if (!cancelled) navigate({ to: "/auth" });
+          if (!cancelled) navigate({ to: "/auth", replace: true });
           return;
         }
         setUserEmail(session.user.email || "");
