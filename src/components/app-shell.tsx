@@ -48,7 +48,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // --- Dark mode ---
+  // Dark mode
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("theme") as "light" | "dark" | null;
@@ -72,7 +72,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  // --- User data ---
+  // User data
   useEffect(() => {
     let cancelled = false;
     const fetchUserData = async () => {
@@ -82,7 +82,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           if (!cancelled) navigate({ to: "/auth" });
           return;
         }
-        // Get user email
         setUserEmail(session.user.email || "");
         setUserName(session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User");
 
@@ -197,7 +196,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
 
           {/* Bottom actions */}
           <div className="pt-4 border-t space-y-2">
-            {/* Dark mode toggle */}
             <button
               onClick={toggleTheme}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
@@ -210,7 +208,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
               {theme === "dark" ? "Light Mode" : "Dark Mode"}
             </button>
 
-            {/* Logout */}
             <Button
               variant="outline"
               className="w-full justify-start gap-3 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
@@ -255,9 +252,9 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           </div>
         </header>
 
-        {/* Content with max-width and centering */}
-        <main className="flex-1 overflow-auto px-4 py-6 lg:px-8">
-          <div className="max-w-5xl mx-auto">{children}</div>
+        {/* Content – reduced padding and wider max-width */}
+        <main className="flex-1 overflow-auto p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
     </div>
