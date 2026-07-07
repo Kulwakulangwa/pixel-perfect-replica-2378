@@ -32,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/customers")({
 
 // --- Types ---
 type CustomerBalance = {
-  id: string;       // we'll alias customer_id as id
+  customer_id: string;   // actual column name
   name: string;
   phone: string | null;
   balance: number;
@@ -106,10 +106,9 @@ function StatCard({
 
 // --- Queries & Mutations ---
 const fetchCustomers = async (): Promise<CustomerBalance[]> => {
-  // Alias customer_id as id so the rest of the code works
   const { data, error } = await supabase
     .from("v_customer_balances")
-    .select("customer_id as id, name, phone, balance")
+    .select("customer_id, name, phone, balance")
     .order("name");
   if (error) throw error;
   return data || [];
@@ -136,13 +135,10 @@ const fetchCustomerPayments = async (customerId: string): Promise<CustomerPaymen
   return data || [];
 };
 
-// --- Mutations ---
 const addCustomer = async (name: string, phone?: string) => {
-  // Get current shop_id
   const { data: shopId, error: shopError } = await supabase.rpc("current_shop_id");
   if (shopError) throw shopError;
   if (!shopId) throw new Error("No shop found for this user.");
-
   const { error } = await supabase
     .from("customers")
     .insert([{ shop_id: shopId, name, phone: phone || null }]);
@@ -260,7 +256,6 @@ function CustomersPage() {
       minimumFractionDigits: 0,
     }).format(value);
 
-  // --- Stats ---
   const totalCustomers = customers.length;
   const totalDebt = customers.reduce((sum, c) => sum + c.balance, 0);
   const withPhone = customers.filter((c) => c.phone).length;
@@ -303,7 +298,7 @@ function CustomersPage() {
                     />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">
+                    <Button variant="outline" onClick={() => setAddDialogOpen(false)} className="rounded-xl">
                       Cancel
                     </Button>
                     <Button type="submit" disabled={addCustomerMutation.isPending} className="rounded-xl">
@@ -345,7 +340,7 @@ function CustomersPage() {
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>
         ) : error ? (
-          <div className="text-red-500">Imeshindwa kupakia wateja. Jaribu tena.</div>
+          <div className="text-red-500">Failed to load customers. Try again.</div>
         ) : customers.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground dark:text-slate-400">
             No customers yet. Add your first customer.
@@ -364,9 +359,9 @@ function CustomersPage() {
               <TableBody>
                 {customers.map((customer) => (
                   <TableRow
-                    key={customer.id}
+                    key={customer.customer_id}
                     className="cursor-pointer hover:bg-muted/50 dark:hover:bg-muted/20"
-                    onClick={() => handleCustomerClick(customer.id)}
+                    onClick={() => handleCustomerClick(customer.customer_id)}
                   >
                     <TableCell className="font-medium dark:text-slate-200">{customer.name}</TableCell>
                     <TableCell className="dark:text-slate-300">{customer.phone || "-"}</TableCell>
@@ -381,7 +376,7 @@ function CustomersPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCustomerClick(customer.id);
+                          handleCustomerClick(customer.customer_id);
                         }}
                       >
                         View
