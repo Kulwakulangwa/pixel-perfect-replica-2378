@@ -30,13 +30,8 @@ type TodaySale = {
   created_at: string;
   customers: {
     name: string | null;
-  } | {
-    name: string | null;
-  }[] | null;
+  } | null;
 };
-
-const getCustomerName = (customers: TodaySale["customers"]) =>
-  Array.isArray(customers) ? customers[0]?.name : customers?.name;
 
 type TodaySummary = {
   total_revenue: number;
@@ -52,6 +47,7 @@ function TodayPage() {
     setDateDescription(format(new Date(), "EEEE, dd MMMM yyyy"));
   }, []);
 
+  // We still need the staff query to get the shop_id, but we no longer filter by cashier_id.
   const { data: user } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
@@ -79,15 +75,18 @@ function TodayPage() {
     enabled: !!user,
   });
 
+  // Fetch today's sales – no cashier filter, everyone sees all sales.
   const { data, isLoading, error } = useQuery({
-    queryKey: ["todaySales", staff?.id, staff?.role],
+    queryKey: ["todaySales"], // we remove staff.id from key since it no longer matters
     queryFn: async () => {
       if (!staff) return null;
       const today = new Date();
       const from = startOfToday().toISOString();
       const to = endOfToday().toISOString();
 
-      let query = supabase
+      // No cashier filter – get all sales for the shop.
+      // RLS will restrict to the current shop automatically (via shop_id policies).
+      const { data: sales, error: salesError } = await supabase
         .from("sales")
         .select(
           `
@@ -99,18 +98,13 @@ function TodayPage() {
           customer_id,
           created_at,
           customers ( name )
-        `,
+        `
         )
         .gte("created_at", from)
         .lte("created_at", to)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
 
-      if (staff.role === "cashier") {
-        query = query.eq("cashier_id", staff.id);
-      }
-
-      const { data: sales, error: salesError } = await query;
       if (salesError) throw salesError;
 
       const totalRevenue = sales?.reduce((sum, s) => sum + s.total, 0) || 0;
@@ -123,7 +117,7 @@ function TodayPage() {
       const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
 
       return {
-        sales: ((sales || []) as unknown as TodaySale[]),
+        sales: sales || [],
         summary: {
           total_revenue: totalRevenue,
           total_sales: totalSales,
@@ -233,7 +227,7 @@ function TodayPage() {
               sales.map((sale) => (
                 <TableRow key={sale.id}>
                   <TableCell className="font-medium">{sale.receipt_number}</TableCell>
-                  <TableCell>{getCustomerName(sale.customers) || "Mteja wa Oda"}</TableCell>
+                  <TableCell>{sale.customers?.name || "Mteja wa Oda"}</TableCell>
                   <TableCell>{formatCurrency(sale.total)}</TableCell>
                   <TableCell>
                     <span
