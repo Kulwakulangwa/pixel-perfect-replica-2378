@@ -32,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/customers")({
 
 // --- Types ---
 type CustomerBalance = {
-  customer_id: string;   // actual column name
+  customer_id: string;
   name: string;
   phone: string | null;
   balance: number;
@@ -145,15 +145,34 @@ const addCustomer = async (name: string, phone?: string) => {
   if (error) throw error;
 };
 
+// --- Fixed recordPayment: adds shop_id, recorded_by, payment_method ---
 const recordPayment = async (
   customerId: string,
   amount: number,
   paymentDate: string,
   note?: string,
 ) => {
+  // Get current shop_id
+  const { data: shopId, error: shopError } = await supabase.rpc("current_shop_id");
+  if (shopError) throw shopError;
+  if (!shopId) throw new Error("No shop found.");
+
+  // Get logged-in user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user) throw new Error("Not logged in.");
+
   const { error } = await supabase
     .from("customer_payments")
-    .insert([{ customer_id: customerId, amount, payment_date: paymentDate, note: note || null }]);
+    .insert([{
+      customer_id: customerId,
+      shop_id: shopId,
+      recorded_by: user.id,
+      amount,
+      payment_date: paymentDate,
+      note: note || null,
+      payment_method: "cash", // default; could be made selectable later
+    }]);
   if (error) throw error;
 };
 
@@ -166,11 +185,7 @@ function CustomersPage() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
-  const {
-    data: customers = [],
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: customers = [], isLoading, error } = useQuery({
     queryKey: ["customers"],
     queryFn: fetchCustomers,
   });
@@ -196,7 +211,7 @@ function CustomersPage() {
       setNewCustomerPhone("");
     },
     onError: (err) => {
-      alert("Imeshindwa kuongeza mteja: " + (err as Error).message);
+      alert("Failed to add customer: " + (err as Error).message);
     },
   });
 
@@ -215,6 +230,12 @@ function CustomersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customerPayments", selectedCustomerId] });
+      // Clear the form
+      const form = document.querySelector("#recordPaymentForm") as HTMLFormElement;
+      if (form) form.reset();
+    },
+    onError: (err) => {
+      alert("Failed to record payment: " + (err as Error).message);
     },
   });
 
@@ -246,7 +267,6 @@ function CustomersPage() {
       paymentDate,
       note: note || undefined,
     });
-    form.reset();
   };
 
   const formatCurrency = (value: number) =>
@@ -311,7 +331,6 @@ function CustomersPage() {
           }
         />
 
-        {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <StatCard
             label="Total Customers"
@@ -334,7 +353,6 @@ function CustomersPage() {
           />
         </div>
 
-        {/* Table */}
         {isLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -455,7 +473,7 @@ function CustomersPage() {
                   )}
                 </TabsContent>
                 <TabsContent value="record">
-                  <form onSubmit={handleRecordPayment} className="space-y-4 py-2">
+                  <form id="recordPaymentForm" onSubmit={handleRecordPayment} className="space-y-4 py-2">
                     <div>
                       <Label htmlFor="amount">Amount (TZS)</Label>
                       <Input
