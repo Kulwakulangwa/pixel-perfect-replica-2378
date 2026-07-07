@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { AppShell, PageHeader } from "@/components/app-shell";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -182,7 +182,7 @@ function PosPage() {
       if (!userData) return null;
       const { data, error } = await supabase
         .from("staff")
-        .select("shop_id, can_discount")
+        .select("shop_id, can_discount, full_name")
         .eq("id", userData.id)
         .single();
       if (error) throw error;
@@ -324,6 +324,9 @@ function PosPage() {
     setSelectedCustomer(null);
     setDiscount(0);
   };
+
+  const cartQtyFor = (productId: string) =>
+    cart.find((item) => item.product_id === productId)?.quantity ?? 0;
 
   // --- Compute totals ---
   const subtotal = cart.reduce((sum, item) => sum + item.line_total, 0);
@@ -566,35 +569,44 @@ function PosPage() {
       minimumFractionDigits: 0,
     }).format(value);
 
+  const today = format(new Date(), "EEEE, d MMMM yyyy");
+  const cashierName = staffData?.full_name || "Cashier";
+
   return (
     <AppShell>
-      <PageHeader
-        title="POS — Sehemu ya Mauzo"
-        description="Chagua bidhaa, ongeza kwenye mkokoteni, na maliza mauzo."
-        action={
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <Badge className="gap-1.5 rounded-full border-0 bg-blue-50 text-blue-700 font-medium px-3 py-1">
-                <Wifi className="h-3 w-3" /> Mtandao
-              </Badge>
-            ) : (
-              <Badge className="gap-1.5 rounded-full border-0 bg-red-50 text-red-700 font-medium px-3 py-1">
-                <WifiOff className="h-3 w-3" /> Nje ya mtandao
-              </Badge>
-            )}
-            {offlineCount > 0 && (
-              <Badge className="gap-1.5 rounded-full border-0 bg-amber-50 text-amber-700 font-medium px-3 py-1">
-                {syncing ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Check className="h-3 w-3" />
-                )}
-                {offlineCount} zinazosubiri
-              </Badge>
-            )}
-          </div>
-        }
-      />
+      {/* Custom header — replaces the generic PageHeader for this screen */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-blue-600 uppercase mb-1">
+            POS
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Karibu, {cashierName}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{today}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {isOnline ? (
+            <Badge className="gap-1.5 rounded-full border-0 bg-blue-50 text-blue-700 font-medium px-3 py-1.5">
+              <Wifi className="h-3 w-3" /> Mtandao
+            </Badge>
+          ) : (
+            <Badge className="gap-1.5 rounded-full border-0 bg-red-50 text-red-700 font-medium px-3 py-1.5">
+              <WifiOff className="h-3 w-3" /> Nje ya mtandao
+            </Badge>
+          )}
+          {offlineCount > 0 && (
+            <Badge className="gap-1.5 rounded-full border-0 bg-amber-50 text-amber-700 font-medium px-3 py-1.5">
+              {syncing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              {offlineCount} zinazosubiri
+            </Badge>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left column */}
@@ -622,40 +634,64 @@ function PosPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3">
                 {filteredProducts.map((product) => {
                   const lowStock = product.current_stock <= product.minimum_stock;
+                  const qty = cartQtyFor(product.id);
+                  const outOfStock = product.current_stock <= 0;
+                  const atMax = qty >= product.current_stock;
                   return (
-                    <button
+                    <div
                       key={product.id}
-                      onClick={() => addToCart(product)}
-                      className="group rounded-2xl border border-border/70 bg-card p-3 text-left transition-all hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:shadow-none flex flex-col items-center"
-                      disabled={product.current_stock <= 0}
+                      className={`rounded-2xl border bg-card p-3 flex flex-col transition-colors ${
+                        qty > 0 ? "border-blue-400 ring-1 ring-blue-100" : "border-border/70"
+                      } ${outOfStock ? "opacity-50" : ""}`}
                     >
                       {product.image_url ? (
                         <img
                           src={product.image_url}
                           alt={product.name}
-                          className="w-16 h-16 object-cover rounded-xl mb-2"
+                          className="w-full h-20 object-cover rounded-xl mb-2"
                         />
                       ) : (
-                        <div className="w-16 h-16 rounded-xl mb-2 bg-blue-50 flex items-center justify-center text-blue-300 text-xs font-medium">
+                        <div className="w-full h-20 rounded-xl mb-2 bg-blue-50 flex items-center justify-center text-blue-300 text-sm font-medium">
                           {product.name.slice(0, 2).toUpperCase()}
                         </div>
                       )}
-                      <div className="font-medium text-sm text-center leading-snug line-clamp-2">
-                        {product.name}
-                      </div>
-                      <div className="text-sm text-foreground/80 font-medium mt-1 tabular-nums">
-                        {formatCurrency(product.selling_price)}
-                      </div>
                       <span
-                        className={`mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                          lowStock
-                            ? "bg-red-50 text-red-600"
-                            : "bg-emerald-50 text-emerald-700"
+                        className={`self-start text-[10px] font-medium px-1.5 py-0.5 rounded-full mb-1 ${
+                          lowStock ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
                         }`}
                       >
                         Stock: {product.current_stock}
                       </span>
-                    </button>
+                      <div className="font-medium text-sm leading-snug line-clamp-2 mb-0.5">
+                        {product.name}
+                      </div>
+                      <div className="text-sm font-semibold text-foreground/90 tabular-nums mb-2">
+                        {formatCurrency(product.selling_price)}
+                      </div>
+
+                      <div className="mt-auto flex items-center justify-between rounded-full border border-border/70 bg-muted/30 px-1 py-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 rounded-full"
+                          onClick={() => updateQuantity(product.id, -1)}
+                          disabled={qty === 0}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="text-sm font-medium tabular-nums w-5 text-center">
+                          {qty}
+                        </span>
+                        <Button
+                          size="icon"
+                          className="h-6 w-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white disabled:bg-muted disabled:text-muted-foreground"
+                          onClick={() => addToCart(product)}
+                          disabled={outOfStock || atMax}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
