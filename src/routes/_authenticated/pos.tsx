@@ -154,16 +154,22 @@ function PosPage() {
     },
   });
 
-  // --- Fetch customers (FIXED: alias customer_id as id) ---
+  // --- Fetch customers (NO ALIAS IN SELECT – map in JS) ---
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("v_customer_balances")
-        .select("customer_id as id, name, phone, balance")
+        .select("customer_id, name, phone, balance")
         .order("name");
       if (error) throw error;
-      return data as Customer[];
+      // Map customer_id to id for the rest of the code
+      return (data || []).map((item: any) => ({
+        id: item.customer_id,
+        name: item.name,
+        phone: item.phone,
+        balance: item.balance,
+      })) as Customer[];
     },
   });
 
@@ -337,7 +343,7 @@ function PosPage() {
   const subtotal = cart.reduce((sum, item) => sum + item.line_total, 0);
   const total = Math.max(0, subtotal - discount);
 
-  // --- Checkout with better error handling ---
+  // --- Checkout with enhanced error logging ---
   const handleCheckout = async () => {
     if (cart.length === 0) {
       toast.error("Hakuna bidhaa kwenye mkokoteni.");
@@ -394,7 +400,7 @@ function PosPage() {
           discount,
           total,
           payment_method: paymentMethod,
-          sale_type: paymentMethod === "credit" ? "credit" : "cash",
+          sale_type: paymentMethod === "credit" ? "credit" : "cash,
           status: "completed",
           created_at: saleData.created_at,
           synced: true,
@@ -405,7 +411,8 @@ function PosPage() {
         if (saleError) {
           console.error("Sale insert error:", saleError);
           // Show detailed error in toast
-          toast.error("Imeshindwa kuhifadhi mauzo: " + (saleError.message || "Jaribu tena"));
+          const errorMsg = saleError.message || JSON.stringify(saleError);
+          toast.error("Imeshindwa kuhifadhi mauzo: " + errorMsg);
           throw saleError;
         }
 
@@ -449,9 +456,11 @@ function PosPage() {
       }
     } catch (error) {
       console.error("Checkout error:", error);
-      // If error is not already displayed, show generic message
       if (!(error instanceof Error && error.message.includes("Imeshindwa"))) {
-        toast.error("Imeshindwa kuhifadhi mauzo. Tafadhali angalia console kwa maelezo.");
+        // If we already showed a toast, don't show again
+        if (!error?.message?.includes("Imeshindwa")) {
+          toast.error("Imeshindwa kuhifadhi mauzo. Tafadhali angalia console kwa maelezo.");
+        }
       }
     } finally {
       setIsCheckingOut(false);
