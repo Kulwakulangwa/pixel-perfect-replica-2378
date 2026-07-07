@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, TrendingUp, ShoppingBag, CreditCard, Wallet, Users } from "lucide-react";
+import { Loader2, TrendingUp, ShoppingBag, CreditCard, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/today")({
   ssr: false,
@@ -48,7 +48,8 @@ function TodayPage() {
     setDateDescription(format(new Date(), "EEEE, dd MMMM yyyy"));
   }, []);
 
-  const { data: user } = useQuery({
+  // Get user
+  const { data: user, isLoading: userLoading, error: userError } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
@@ -57,7 +58,8 @@ function TodayPage() {
     },
   });
 
-  const { data: staff } = useQuery({
+  // Get staff (only after user)
+  const { data: staff, isLoading: staffLoading, error: staffError } = useQuery({
     queryKey: ["currentStaff"],
     queryFn: async () => {
       if (!user) return null;
@@ -72,8 +74,8 @@ function TodayPage() {
     enabled: !!user,
   });
 
-  // Fetch today's sales
-  const { data, isLoading, error } = useQuery({
+  // Fetch today's sales (only after staff is loaded)
+  const { data, isLoading: salesLoading, error: salesError } = useQuery({
     queryKey: ["todaySales"],
     queryFn: async () => {
       if (!staff) return null;
@@ -81,7 +83,6 @@ function TodayPage() {
       const from = startOfToday().toISOString();
       const to = endOfToday().toISOString();
 
-      // First: fetch all sales with cashier_id
       const { data: sales, error: salesError } = await supabase
         .from("sales")
         .select(`
@@ -102,7 +103,7 @@ function TodayPage() {
 
       if (salesError) throw salesError;
 
-      // Second: fetch cashier names for all unique cashier_ids
+      // Fetch cashier names
       const cashierIds = [...new Set(sales?.map(s => s.cashier_id).filter(Boolean))];
       let cashierNames: Record<string, string> = {};
       if (cashierIds.length > 0) {
@@ -118,7 +119,6 @@ function TodayPage() {
         }
       }
 
-      // Attach cashier name to each sale
       const enrichedSales = sales?.map(sale => ({
         ...sale,
         cashier_name: cashierNames[sale.cashier_id] || sale.cashier_id.slice(0, 8),
@@ -145,8 +145,12 @@ function TodayPage() {
         },
       };
     },
-    enabled: !!staff,
+    enabled: !!staff, // only run when staff is loaded
   });
+
+  // Determine loading states
+  const isLoading = userLoading || staffLoading || salesLoading;
+  const hasError = userError || staffError || salesError;
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("sw-TZ", {
@@ -157,7 +161,7 @@ function TodayPage() {
 
   const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
 
-  // --- Stat card component (mirrors dashboard) ---
+  // --- Stat card component ---
   const STAT_STYLES = {
     dark: {
       card: "bg-[#16294A] dark:bg-[#0a1628] text-white dark:text-slate-200 border-transparent",
@@ -209,7 +213,7 @@ function TodayPage() {
     );
   }
 
-  // --- Loading & error states ---
+  // --- Render states ---
   if (isLoading) {
     return (
       <AppShell>
@@ -220,10 +224,11 @@ function TodayPage() {
     );
   }
 
-  if (error || !data) {
+  if (hasError || !data) {
+    const errorMsg = userError?.message || staffError?.message || salesError?.message || "Unknown error";
     return (
       <AppShell>
-        <div className="text-red-500 p-4">Imeshindwa kupakia mauzo ya leo. Jaribu tena.</div>
+        <div className="text-red-500 p-4">Imeshindwa kupakia mauzo ya leo: {errorMsg}</div>
       </AppShell>
     );
   }
@@ -235,7 +240,6 @@ function TodayPage() {
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Mauzo ya Leo" description={dateDescription} />
 
-        {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             label="Jumla ya Mauzo"
@@ -264,7 +268,6 @@ function TodayPage() {
           />
         </div>
 
-        {/* Sales Table */}
         <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
           <Table>
             <TableHeader>
