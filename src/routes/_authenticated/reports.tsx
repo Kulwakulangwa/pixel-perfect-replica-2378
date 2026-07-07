@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
+import { supabase } from "@/integrations/supabase/client";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays } from "date-fns";
+import { formatMoney } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,94 +23,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Calendar } from "lucide-react";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { Loader2, Calendar, TrendingUp, ShoppingBag, Wallet, Receipt, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardHeader as CardHeaderUI, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   ssr: false,
-  component: ReportsPage,
+  component: () => (
+    <AppShell requireOwner>
+      <ReportsPage />
+    </AppShell>
+  ),
 });
 
-type ReportType =
-  "daily" | "weekly" | "monthly" | "bestsellers" | "profit" | "expenses" | "netprofit";
+type ReportType = "daily" | "weekly" | "monthly" | "bestsellers" | "profit" | "expenses";
 
-type Sale = {
-  id: string;
-  created_at: string;
-  total: number;
-};
-
-type SaleItem = {
-  id: string;
-  sale_id: string;
-  product_id: string;
-  quantity: number;
-  selling_price: number;
-  unit_cost: number;
-  products: {
-    id: string;
-    name: string;
-    buying_price: number;
-  } | {
-    id: string;
-    name: string;
-    buying_price: number;
-  }[] | null;
-};
-
-const getSaleItemProduct = (products: SaleItem["products"]) =>
-  Array.isArray(products) ? products[0] : products;
-
-type Expense = {
-  id: string;
-  amount: number;
-  category: string;
-  expense_date: string;
-};
-
-const fetchSalesData = async (from: string, to: string) => {
-  const { data, error } = await supabase
-    .from("sales")
-    .select("id, created_at, total")
-    .gte("created_at", from)
-    .lte("created_at", to)
-    .eq("status", "completed")
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return data as Sale[];
-};
-
-const fetchSaleItems = async (saleIds: string[]) => {
-  if (saleIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from("sale_items")
-    .select(
-      `
-      id,
-      sale_id,
-      product_id,
-      quantity,
-      selling_price,
-      unit_cost,
-      products ( id, name, buying_price )
-    `,
-    )
-    .in("sale_id", saleIds);
-  if (error) throw error;
-  return (data ?? []) as unknown as SaleItem[];
-};
-
-const fetchExpenses = async (from: string, to: string) => {
-  const { data, error } = await supabase
-    .from("expenses")
-    .select("id, amount, category, expense_date")
-    .gte("expense_date", from)
-    .lte("expense_date", to)
-    .order("expense_date", { ascending: true });
-  if (error) throw error;
-  return data as Expense[];
-};
-
+// --- Helper to get default date range ---
 const getDefaultDateRange = (reportType: ReportType) => {
   const now = new Date();
   let from: Date, to: Date;
@@ -127,8 +56,8 @@ const getDefaultDateRange = (reportType: ReportType) => {
       to = endOfMonth(now);
       break;
     default:
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-      to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      from = subDays(now, 30);
+      to = now;
   }
   return {
     from: format(from, "yyyy-MM-dd"),
@@ -140,80 +69,108 @@ function ReportsPage() {
   const [reportType, setReportType] = useState<ReportType>("daily");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
+  const [dateDescription, setDateDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useMemo(() => {
+  // Set default date range when report type changes
+  useEffect(() => {
     const { from, to } = getDefaultDateRange(reportType);
     setFromDate(from);
     setToDate(to);
+    setDateDescription(`${format(new Date(from), "dd/MM/yyyy")} - ${format(new Date(to), "dd/MM/yyyy")}`);
   }, [reportType]);
 
-  const salesQuery = useQuery({
-    queryKey: ["salesData", fromDate, toDate],
-    queryFn: () => fetchSalesData(fromDate, toDate),
-    enabled: !!fromDate && !!toDate,
-  });
-
-  const saleItemsQuery = useQuery({
-    queryKey: ["saleItems", salesQuery.data?.map((s) => s.id)],
-    queryFn: () => fetchSaleItems(salesQuery.data?.map((s) => s.id) || []),
-    enabled: !!salesQuery.data && salesQuery.data.length > 0,
-  });
-
-  const expensesQuery = useQuery({
-    queryKey: ["expensesData", fromDate, toDate],
-    queryFn: () => fetchExpenses(fromDate, toDate),
-    enabled: !!fromDate && !!toDate,
-  });
-
-  const isLoading = salesQuery.isLoading || saleItemsQuery.isLoading || expensesQuery.isLoading;
-  const error = salesQuery.error || saleItemsQuery.error || expensesQuery.error;
-
-  // Compute aggregated metrics
-  const reportData = useMemo(() => {
-    if (!salesQuery.data || !saleItemsQuery.data || !expensesQuery.data) return null;
-
-    const sales = salesQuery.data;
-    const items = saleItemsQuery.data;
-    const expenses = expensesQuery.data;
-
-    // Total revenue
-    const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
-
-    // Total COGS (using unit_cost from sale_items)
-    const totalCOGS = items.reduce((sum, item) => sum + (item.unit_cost || 0) * item.quantity, 0);
-
-    // Gross profit
-    const grossProfit = totalRevenue - totalCOGS;
-
-    // Total expenses
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-
-    // Net profit
-    const netProfit = grossProfit - totalExpenses;
-
-    // Group sales by period for daily/weekly/monthly
-    const groupSales = (groupFn: (date: Date) => string) => {
-      const groups: { [key: string]: { revenue: number; cogs: number } } = {};
-      sales.forEach((sale) => {
-        const key = groupFn(new Date(sale.created_at));
-        if (!groups[key]) groups[key] = { revenue: 0, cogs: 0 };
-        groups[key].revenue += sale.total;
+  // --- Queries ---
+  // 1. Sales summary via RPC
+  const { data: summaryData, isLoading: summaryLoading, error: summaryError } = useQuery({
+    queryKey: ["report-summary", fromDate, toDate],
+    queryFn: async () => {
+      if (!fromDate || !toDate) return null;
+      const { data, error } = await supabase.rpc("report_sales_summary", {
+        _from: fromDate,
+        _to: toDate,
       });
-      // Also add COGS per sale – but we need to map sale items to sale_id
-      // We can compute per day by iterating items, but easier: we already have total revenue per day, and COGS per day can be derived by splitting items.
-      // However, to keep it simple, we'll just show revenue per day, and the total metrics are already computed.
-      // For detailed daily breakdown, we'd need to map items to sale dates.
-      // We'll use a simpler approach: only show total revenue per day (no COGS per day) to keep it clear.
-      return Object.entries(groups)
-        .map(([label, { revenue }]) => ({ label, revenue }))
-        .sort((a, b) => a.label.localeCompare(b.label));
+      if (error) {
+        console.error("RPC error:", error);
+        throw error;
+      }
+      return data as Array<{ day: string; sales_count: number; revenue: number; cost: number; profit: number; discount_total: number }>;
+    },
+    enabled: !!fromDate && !!toDate,
+  });
+
+  // 2. Best sellers
+  const { data: bestSellersData, isLoading: bestSellersLoading, error: bestSellersError } = useQuery({
+    queryKey: ["best-sellers", fromDate, toDate],
+    queryFn: async () => {
+      if (!fromDate || !toDate) return [];
+      const { data, error } = await supabase
+        .from("v_best_sellers")
+        .select("product_id, product_name, units_sold, revenue")
+        .order("revenue", { ascending: false })
+        .limit(10);
+      if (error) {
+        console.error("Best sellers error:", error);
+        throw error;
+      }
+      return data;
+    },
+    enabled: !!fromDate && !!toDate,
+  });
+
+  // 3. Expenses for the period
+  const { data: expensesData, isLoading: expensesLoading, error: expensesError } = useQuery({
+    queryKey: ["expenses-data", fromDate, toDate],
+    queryFn: async () => {
+      if (!fromDate || !toDate) return [];
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("amount, category, expense_date")
+        .gte("expense_date", fromDate)
+        .lte("expense_date", toDate)
+        .order("expense_date", { ascending: true });
+      if (error) {
+        console.error("Expenses error:", error);
+        throw error;
+      }
+      return data;
+    },
+    enabled: !!fromDate && !!toDate,
+  });
+
+  // Combine loading states
+  const isLoading = summaryLoading || bestSellersLoading || expensesLoading;
+  const hasError = summaryError || bestSellersError || expensesError;
+
+  // --- Compute derived data ---
+  const reportData = useMemo(() => {
+    if (!summaryData || !bestSellersData || !expensesData) return null;
+
+    // Group sales by day/week/month
+    const groupSales = (groupFn: (date: Date) => string) => {
+      const groups: Record<string, { revenue: number; profit: number; count: number }> = {};
+      summaryData.forEach((row) => {
+        const d = new Date(row.day);
+        const key = groupFn(d);
+        if (!groups[key]) groups[key] = { revenue: 0, profit: 0, count: 0 };
+        groups[key].revenue += Number(row.revenue);
+        groups[key].profit += Number(row.profit);
+        groups[key].count += Number(row.sales_count);
+      });
+      return Object.entries(groups).map(([label, data]) => ({
+        label,
+        revenue: data.revenue,
+        profit: data.profit,
+        count: data.count,
+      }));
     };
 
-    let salesReport: { label: string; revenue: number }[] = [];
+    let salesReport: { label: string; revenue: number; profit: number; count: number }[] = [];
     let periodLabel = "";
     switch (reportType) {
       case "daily":
-        periodLabel = "Tarehe";
+        periodLabel = "Siku";
         salesReport = groupSales((d) => format(d, "yyyy-MM-dd"));
         break;
       case "weekly":
@@ -228,47 +185,39 @@ function ReportsPage() {
         break;
     }
 
-    // Best sellers
-    const bestSellers = () => {
-      const productSales: {
-        [productId: string]: { name: string; quantity: number; revenue: number };
-      } = {};
-      items.forEach((item) => {
-        const p = getSaleItemProduct(item.products);
-        if (!p) return;
-        if (!productSales[p.id]) {
-          productSales[p.id] = { name: p.name, quantity: 0, revenue: 0 };
-        }
-        productSales[p.id].quantity += item.quantity;
-        productSales[p.id].revenue += item.quantity * item.selling_price;
-      });
-      return Object.values(productSales)
-        .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 10);
-    };
+    // Total revenue for the period
+    const totalRevenue = salesReport.reduce((s, r) => s + r.revenue, 0);
+    const totalProfit = salesReport.reduce((s, r) => s + r.profit, 0);
+    const totalSalesCount = salesReport.reduce((s, r) => s + r.count, 0);
 
-    // Expenses breakdown
-    const expensesBreakdown = () => {
-      const byCategory: { [key: string]: number } = {};
-      expenses.forEach((e) => {
-        byCategory[e.category] = (byCategory[e.category] || 0) + e.amount;
-      });
-      return { total: totalExpenses, byCategory };
-    };
+    // Best sellers
+    const bestSellers = bestSellersData.map((item) => ({
+      ...item,
+      revenue: Number(item.revenue),
+    }));
+
+    // Expenses
+    const totalExpenses = expensesData.reduce((sum, e) => sum + Number(e.amount), 0);
+    const expensesByCategory: Record<string, number> = {};
+    expensesData.forEach((e) => {
+      expensesByCategory[e.category] = (expensesByCategory[e.category] || 0) + Number(e.amount);
+    });
 
     return {
-      totalRevenue,
-      totalCOGS,
-      grossProfit,
-      totalExpenses,
-      netProfit,
       salesReport,
       periodLabel,
-      bestSellers: bestSellers(),
-      expenses: expensesBreakdown(),
+      totalRevenue,
+      totalProfit,
+      totalSalesCount,
+      bestSellers,
+      expenses: {
+        total: totalExpenses,
+        byCategory: expensesByCategory,
+      },
     };
-  }, [salesQuery.data, saleItemsQuery.data, expensesQuery.data, reportType]);
+  }, [summaryData, bestSellersData, expensesData, reportType]);
 
+  // --- Render helpers ---
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("sw-TZ", {
       style: "currency",
@@ -276,184 +225,277 @@ function ReportsPage() {
       minimumFractionDigits: 0,
     }).format(value);
 
-  const renderReport = () => {
-    if (isLoading)
+  const renderContent = () => {
+    if (isLoading) {
       return (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
         </div>
       );
-    if (error) return <div className="text-red-500">Imeshindwa kupakia ripoti. Jaribu tena.</div>;
-    if (!reportData)
-      return <div className="text-muted-foreground">Hakuna data kwa kipindi hiki.</div>;
+    }
+
+    if (hasError) {
+      return (
+        <div className="text-red-500 p-4 flex flex-col items-center gap-2">
+          <AlertCircle className="h-8 w-8" />
+          <p>Imeshindwa kupakia ripoti. Jaribu tena.</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Jaribu tena
+          </Button>
+        </div>
+      );
+    }
+
+    if (!reportData) {
+      return <div className="text-center py-8 text-muted-foreground">Hakuna data kwa kipindi hiki.</div>;
+    }
 
     switch (reportType) {
       case "daily":
       case "weekly":
       case "monthly":
-        return (
-          <div>
-            <div className="mb-4 text-lg font-semibold">
-              Jumla ya Mauzo: {formatCurrency(reportData.totalRevenue)}
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{reportData.periodLabel}</TableHead>
-                  <TableHead className="text-right">Jumla</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportData.salesReport.map((row) => (
-                  <TableRow key={row.label}>
-                    <TableCell>{row.label}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        );
-
+        return renderSalesTable(reportData);
       case "bestsellers":
-        return (
-          <div>
-            <div className="mb-4 text-lg font-semibold">Bidhaa Zinazouza Sana</div>
-            {reportData.bestSellers.length === 0 ? (
-              <p className="text-muted-foreground">Hakuna mauzo katika kipindi hiki.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Bidhaa</TableHead>
-                    <TableHead className="text-right">Idadi</TableHead>
-                    <TableHead className="text-right">Mapato</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportData.bestSellers.map((item, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.revenue)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        );
-
+        return renderBestSellers(reportData);
       case "profit":
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 border rounded-lg">
-                <div className="text-sm text-muted-foreground">Jumla ya Mauzo</div>
-                <div className="text-2xl font-bold">{formatCurrency(reportData.totalRevenue)}</div>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <div className="text-sm text-muted-foreground">Gharama ya Bidhaa Zilizouzwa</div>
-                <div className="text-2xl font-bold">{formatCurrency(reportData.totalCOGS)}</div>
-              </div>
-              <div className="p-4 border rounded-lg bg-green-50">
-                <div className="text-sm text-muted-foreground">Faida ya Jumla (Gross Profit)</div>
-                <div className="text-2xl font-bold text-green-700">
-                  {formatCurrency(reportData.grossProfit)}
-                </div>
-              </div>
-              <div className="p-4 border rounded-lg bg-blue-50">
-                <div className="text-sm text-muted-foreground">Gharama Zote</div>
-                <div className="text-2xl font-bold text-blue-700">
-                  {formatCurrency(reportData.totalExpenses)}
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border rounded-lg bg-yellow-50">
-              <div className="text-sm text-muted-foreground">Faida Halisi (Net Profit)</div>
-              <div className="text-2xl font-bold text-yellow-700">
-                {formatCurrency(reportData.netProfit)}
-              </div>
-            </div>
-          </div>
-        );
-
+        return renderProfit(reportData);
       case "expenses":
-        return (
-          <div>
-            <div className="mb-4 text-lg font-semibold">
-              Jumla ya Gharama: {formatCurrency(reportData.expenses.total)}
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Aina</TableHead>
-                  <TableHead className="text-right">Kiasi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(reportData.expenses.byCategory).map(([category, amount]) => (
-                  <TableRow key={category}>
-                    <TableCell className="capitalize">{category}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(amount)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        );
-
-      case "netprofit":
-        return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="p-4 border rounded-lg">
-                <div className="text-sm text-muted-foreground">Mauzo</div>
-                <div className="text-xl font-bold">{formatCurrency(reportData.totalRevenue)}</div>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <div className="text-sm text-muted-foreground">COGS</div>
-                <div className="text-xl font-bold">{formatCurrency(reportData.totalCOGS)}</div>
-              </div>
-              <div className="p-4 border rounded-lg bg-green-50">
-                <div className="text-sm text-muted-foreground">Faida ya Jumla</div>
-                <div className="text-xl font-bold text-green-700">
-                  {formatCurrency(reportData.grossProfit)}
-                </div>
-              </div>
-              <div className="p-4 border rounded-lg bg-blue-50">
-                <div className="text-sm text-muted-foreground">Gharama</div>
-                <div className="text-xl font-bold text-blue-700">
-                  {formatCurrency(reportData.totalExpenses)}
-                </div>
-              </div>
-              <div className="p-4 border rounded-lg bg-yellow-50">
-                <div className="text-sm text-muted-foreground">Faida Halisi</div>
-                <div className="text-xl font-bold text-yellow-700">
-                  {formatCurrency(reportData.netProfit)}
-                </div>
-              </div>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              Faida Halisi = Mauzo – Gharama ya Bidhaa – Gharama zingine
-            </div>
-          </div>
-        );
-
+        return renderExpenses(reportData);
       default:
         return null;
     }
   };
 
-  return (
-    <AppShell requireOwner>
-      <PageHeader title="Ripoti" description="Changanua mauzo, faida, gharama na faida halisi" />
+  const renderSalesTable = (data: any) => {
+    return (
+      <div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <StatCard
+            label="Jumla ya Mauzo"
+            value={formatCurrency(data.totalRevenue)}
+            icon={TrendingUp}
+            variant="mint"
+          />
+          <StatCard
+            label="Faida Jumla"
+            value={formatCurrency(data.totalProfit)}
+            icon={Wallet}
+            variant="amber"
+          />
+          <StatCard
+            label="Idadi ya Mauzo"
+            value={String(data.totalSalesCount)}
+            icon={Receipt}
+            variant="rose"
+          />
+        </div>
+        <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{data.periodLabel}</TableHead>
+                <TableHead className="text-right">Mauzo</TableHead>
+                <TableHead className="text-right">Faida</TableHead>
+                <TableHead className="text-right">Idadi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.salesReport.map((row: any) => (
+                <TableRow key={row.label}>
+                  <TableCell className="font-medium">{row.label}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(row.revenue)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(row.profit)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{row.count}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  };
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  const renderBestSellers = (data: any) => {
+    return (
+      <div>
+        <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead>
+                <TableHead>Bidhaa</TableHead>
+                <TableHead className="text-right">Idadi</TableHead>
+                <TableHead className="text-right">Mapato</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.bestSellers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    Hakuna mauzo katika kipindi hiki.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.bestSellers.map((item: any, i: number) => (
+                  <TableRow key={item.product_id}>
+                    <TableCell>
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16294A] dark:bg-[#2a4a7a] text-[11px] font-semibold text-white">
+                        {i + 1}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                    <TableCell className="text-right tabular-nums">{item.units_sold}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(item.revenue)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderProfit = (data: any) => {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard
+          label="Jumla ya Mauzo"
+          value={formatCurrency(data.totalRevenue)}
+          icon={TrendingUp}
+          variant="mint"
+        />
+        <StatCard
+          label="Faida Jumla"
+          value={formatCurrency(data.totalProfit)}
+          icon={Wallet}
+          variant="amber"
+        />
+        <StatCard
+          label="Gharama Jumla"
+          value={formatCurrency(data.expenses.total)}
+          icon={AlertCircle}
+          variant="rose"
+        />
+        <div className="col-span-full">
+          <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] p-4 shadow-sm">
+            <p className="text-sm text-muted-foreground">
+              Faida inahesabiwa kwa kutoa gharama za bidhaa (buying price) kutoka bei ya kuuza. Gharama za uendeshaji zimeonyeshwa hapo juu.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderExpenses = (data: any) => {
+    const categories = Object.entries(data.expenses.byCategory);
+    return (
+      <div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <StatCard
+            label="Jumla ya Gharama"
+            value={formatCurrency(data.expenses.total)}
+            icon={Wallet}
+            variant="rose"
+          />
+          <StatCard
+            label="Aina za Gharama"
+            value={String(categories.length)}
+            icon={Receipt}
+            variant="mint"
+          />
+        </div>
+        <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Aina</TableHead>
+                <TableHead className="text-right">Kiasi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categories.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                    Hakuna gharama katika kipindi hiki.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                categories.map(([category, amount]) => (
+                  <TableRow key={category}>
+                    <TableCell className="capitalize">{category.replace("_", " ")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(amount)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  };
+
+  // --- StatCard component (mirrors dashboard) ---
+  const STAT_STYLES = {
+    mint: {
+      card: "bg-white dark:bg-[#121212] border-border dark:border-border/30",
+      label: "text-muted-foreground dark:text-muted-foreground/80",
+      iconWrap: "bg-[#E4F7EC] text-[#2FAE60] dark:bg-[#0a2a1a] dark:text-[#34d399]",
+    },
+    amber: {
+      card: "bg-white dark:bg-[#121212] border-border dark:border-border/30",
+      label: "text-muted-foreground dark:text-muted-foreground/80",
+      iconWrap: "bg-[#FFF1DE] text-[#F5A623] dark:bg-[#3a2a10] dark:text-[#fbbf24]",
+    },
+    rose: {
+      card: "bg-white dark:bg-[#121212] border-border dark:border-border/30",
+      label: "text-muted-foreground dark:text-muted-foreground/80",
+      iconWrap: "bg-[#FDE7E5] text-[#E4574A] dark:bg-[#3a1a1a] dark:text-[#f87171]",
+    },
+  };
+
+  function StatCard({
+    label,
+    value,
+    icon: Icon,
+    variant = "mint",
+  }: {
+    label: string;
+    value: string;
+    icon: React.ComponentType<{ className?: string }>;
+    variant?: keyof typeof STAT_STYLES;
+  }) {
+    const v = STAT_STYLES[variant];
+    return (
+      <div className={`rounded-2xl border p-4 shadow-sm ${v.card}`}>
+        <div className="flex items-start justify-between">
+          <div className={`text-xs font-medium uppercase tracking-wide ${v.label}`}>{label}</div>
+          <span className={`flex h-8 w-8 items-center justify-center rounded-full ${v.iconWrap}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+        </div>
+        <div className="mt-3 text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
+      </div>
+    );
+  }
+
+  // --- Main render ---
+  return (
+    <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+      <PageHeader
+        title="Ripoti"
+        description="Changanua mauzo, faida na gharama zako"
+      />
+
+      {/* Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 bg-white dark:bg-[#121212] rounded-2xl border border-border p-4 shadow-sm">
         <div>
-          <Label htmlFor="reportType">Aina ya Ripoti</Label>
+          <Label htmlFor="reportType" className="text-sm font-medium">Aina ya Ripoti</Label>
           <Select value={reportType} onValueChange={(v) => setReportType(v as ReportType)}>
-            <SelectTrigger>
+            <SelectTrigger className="mt-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -461,28 +503,29 @@ function ReportsPage() {
               <SelectItem value="weekly">Mauzo ya Wiki</SelectItem>
               <SelectItem value="monthly">Mauzo ya Mwezi</SelectItem>
               <SelectItem value="bestsellers">Bidhaa Zinazouza Sana</SelectItem>
-              <SelectItem value="profit">Faida (Gross & Net)</SelectItem>
+              <SelectItem value="profit">Faida</SelectItem>
               <SelectItem value="expenses">Gharama</SelectItem>
-              <SelectItem value="netprofit">Faida Halisi (Net Profit)</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label htmlFor="fromDate">Kuanzia</Label>
+          <Label htmlFor="fromDate" className="text-sm font-medium">Kuanzia</Label>
           <Input
             id="fromDate"
             type="date"
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
+            className="mt-1"
           />
         </div>
         <div>
-          <Label htmlFor="toDate">Mpaka</Label>
+          <Label htmlFor="toDate" className="text-sm font-medium">Mpaka</Label>
           <Input
             id="toDate"
             type="date"
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
+            className="mt-1"
           />
         </div>
         <div className="flex items-end">
@@ -500,7 +543,10 @@ function ReportsPage() {
         </div>
       </div>
 
-      <div className="border rounded-lg p-4">{renderReport()}</div>
-    </AppShell>
+      {/* Content */}
+      <div className="min-h-[300px]">
+        {renderContent()}
+      </div>
+    </div>
   );
 }
