@@ -128,7 +128,7 @@ const fetchCustomerSales = async (customerId: string): Promise<CustomerSale[]> =
 const fetchCustomerPayments = async (customerId: string): Promise<CustomerPayment[]> => {
   const { data, error } = await supabase
     .from("customer_payments")
-    .select("id, amount, payment_date, note") // payment_date now exists
+    .select("id, amount, payment_date, note")
     .eq("customer_id", customerId)
     .order("payment_date", { ascending: false });
   if (error) throw error;
@@ -159,7 +159,6 @@ const recordPayment = async (
   if (userError) throw userError;
   if (!user) throw new Error("Not logged in.");
 
-  // Now we have the payment_date column
   const { error } = await supabase
     .from("customer_payments")
     .insert([{
@@ -167,7 +166,7 @@ const recordPayment = async (
       shop_id: shopId,
       recorded_by: user.id,
       amount,
-      payment_date: paymentDate, // now inserted correctly
+      payment_date: paymentDate,
       note: note || null,
       payment_method: "cash",
     }]);
@@ -183,7 +182,12 @@ function CustomersPage() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
-  const { data: customers = [], isLoading, error } = useQuery({
+  const {
+    data: customers = [],
+    isLoading,
+    error,
+    refetch: refetchCustomers,
+  } = useQuery({
     queryKey: ["customers"],
     queryFn: fetchCustomers,
   });
@@ -226,8 +230,13 @@ function CustomersPage() {
       note?: string;
     }) => recordPayment(customerId, amount, paymentDate, note),
     onSuccess: () => {
+      // Invalidate all queries that depend on customer data
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customerPayments", selectedCustomerId] });
+      // Also refetch immediately to update the balance
+      setTimeout(() => {
+        refetchCustomers();
+      }, 300);
       // Clear the form
       const form = document.querySelector("#recordPaymentForm") as HTMLFormElement;
       if (form) form.reset();
