@@ -12,6 +12,7 @@ import {
   Receipt,
   Wallet,
   ArrowUpRight,
+  Loader2, // <-- added here
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -27,6 +28,16 @@ function DashboardPage() {
   const [startOfWeek, setStartOfWeek] = useState<Date>(new Date());
   const [startOfMonth, setStartOfMonth] = useState<Date>(new Date());
 
+  // Get current user
+  const { data: user, isLoading: userLoading } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      return user;
+    },
+  });
+
   useEffect(() => {
     setTodayStr(now.toISOString().slice(0, 10));
     const sw = new Date(now);
@@ -40,6 +51,7 @@ function DashboardPage() {
     setToDate(now.toISOString().slice(0, 10));
   }, [now]);
 
+  // Summary query – only runs when user is loaded and dates are set
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["report-summary", fromDate, toDate],
     queryFn: async () => {
@@ -50,9 +62,10 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ day: string; sales_count: number; revenue: number; cost: number; profit: number; discount_total: number }>;
     },
-    enabled: !!fromDate && !!toDate,
+    enabled: !!user && !!fromDate && !!toDate,
   });
 
+  // Debtors – only after user loads
   const { data: debtors, isLoading: debtorsLoading } = useQuery({
     queryKey: ["dashboard-debtors"],
     queryFn: async () => {
@@ -65,8 +78,10 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ customer_id: string; name: string; phone: string | null; balance: number; last_purchase_at: string | null }>;
     },
+    enabled: !!user,
   });
 
+  // Low stock – only after user loads
   const { data: lowStock, isLoading: lowStockLoading } = useQuery({
     queryKey: ["dashboard-low-stock"],
     queryFn: async () => {
@@ -74,8 +89,10 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ id: string; name: string; current_stock: number; minimum_stock: number }>;
     },
+    enabled: !!user,
   });
 
+  // Best sellers – only after user loads
   const { data: bestSellers, isLoading: bestSellersLoading } = useQuery({
     queryKey: ["dashboard-best-sellers"],
     queryFn: async () => {
@@ -83,8 +100,10 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ product_id: string; product_name: string; units_sold: number; revenue: number }>;
     },
+    enabled: !!user,
   });
 
+  // Recent sales – only after user loads
   const { data: recentSales, isLoading: recentSalesLoading } = useQuery({
     queryKey: ["dashboard-recent-sales"],
     queryFn: async () => {
@@ -92,9 +111,10 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ id: string; receipt_number: string; total: number; sale_type: string; payment_method: string | null; created_at: string }>;
     },
+    enabled: !!user,
   });
 
-  const isLoading = summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
+  const isLoading = userLoading || summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
 
   const isSameDay = (s: string) => s === todayStr;
   const inRange = (d: string, start: Date) => new Date(d) >= start;
@@ -110,11 +130,12 @@ function DashboardPage() {
 
   const totalDebt = (debtors ?? []).reduce((s, d) => s + Number(d.balance), 0);
 
+  // Loading state
   if (isLoading) {
     return (
-      <AppShell requireOwner>
+      <AppShell>
         <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </AppShell>
     );
@@ -125,6 +146,7 @@ function DashboardPage() {
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Dashboard" description="Muhtasari wa duka lako" />
 
+        {/* Stat row — dark navy hero card + three light cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
           <StatCard
             label="Mauzo Leo"
@@ -255,5 +277,113 @@ function DashboardPage() {
   );
 }
 
-// ... rest of the helpers (StatCard, Avatar, Card, CardHeader, EmptyRow) remain the same ...
-// They are already defined in your file.
+// ----- Helpers (unchanged) -----
+
+const VARIANT_STYLES = {
+  dark: {
+    card: "bg-[#16294A] text-white dark:bg-[#0a1628] dark:text-slate-200 border-transparent",
+    label: "text-white/70 dark:text-slate-300",
+    sub: "text-white/70 dark:text-slate-300",
+    iconWrap: "bg-white/10 text-white dark:bg-slate-700/50 dark:text-slate-200",
+  },
+  mint: {
+    card: "bg-white border-border dark:bg-[#1a2a2a] dark:border-border/30",
+    label: "text-muted-foreground dark:text-muted-foreground/80",
+    sub: "text-muted-foreground dark:text-muted-foreground/80",
+    iconWrap: "bg-[#E4F7EC] text-[#2FAE60] dark:bg-[#0a2a1a] dark:text-[#34d399]",
+  },
+  amber: {
+    card: "bg-white border-border dark:bg-[#2a1a0a] dark:border-border/30",
+    label: "text-muted-foreground dark:text-muted-foreground/80",
+    sub: "text-muted-foreground dark:text-muted-foreground/80",
+    iconWrap: "bg-[#FFF1DE] text-[#F5A623] dark:bg-[#3a2a10] dark:text-[#fbbf24]",
+  },
+  rose: {
+    card: "bg-white border-border dark:bg-[#2a1010] dark:border-border/30",
+    label: "text-muted-foreground dark:text-muted-foreground/80",
+    sub: "text-muted-foreground dark:text-muted-foreground/80",
+    iconWrap: "bg-[#FDE7E5] text-[#E4574A] dark:bg-[#3a1a1a] dark:text-[#f87171]",
+  },
+} as const;
+
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  variant = "mint",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  variant?: keyof typeof VARIANT_STYLES;
+}) {
+  const v = VARIANT_STYLES[variant];
+  return (
+    <div className={`rounded-2xl border p-4 lg:p-5 shadow-sm ${v.card}`}>
+      <div className="flex items-start justify-between">
+        <div className={`text-xs font-medium uppercase tracking-wide ${v.label}`}>{label}</div>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-full ${v.iconWrap}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-3 text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
+      {sub && <div className={`text-xs mt-1 ${v.sub}`}>{sub}</div>}
+    </div>
+  );
+}
+
+function Avatar({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0]?.toUpperCase())
+    .join("");
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#16294A]/10 dark:bg-[#2a4a7a]/30 text-[11px] font-semibold text-[#16294A] dark:text-slate-200">
+      {initials || "?"}
+    </span>
+  );
+}
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl border border-border bg-white dark:bg-[#121212] p-4 lg:p-5 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({
+  icon: Icon,
+  iconBg,
+  title,
+  href,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  title: string;
+  href?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center gap-2.5">
+        <span className={`flex h-8 w-8 items-center justify-center rounded-full ${iconBg}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <h3 className="font-semibold text-sm dark:text-foreground">{title}</h3>
+      </div>
+      {href && (
+        <Link to={href} className="flex items-center gap-1 text-xs font-medium text-[#2E6BE6] dark:text-[#60a5fa] hover:underline">
+          Ona vyote <ArrowUpRight className="h-3 w-3" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function EmptyRow({ msg }: { msg: string }) {
+  return <div className="py-6 text-center text-sm text-muted-foreground dark:text-muted-foreground/70">{msg}</div>;
+}
