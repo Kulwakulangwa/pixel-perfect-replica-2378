@@ -18,6 +18,7 @@ import {
   Store,
   Sun,
   Moon,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,12 +26,12 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner"] },
   { to: "/pos", label: "POS", icon: ShoppingCart, roles: ["owner", "cashier"] },
   { to: "/today", label: "Today", icon: Calendar, roles: ["owner", "cashier"] },
-  { to: "/customers", label: "Wateja", icon: Users, roles: ["owner", "cashier"] },
-  { to: "/expenses", label: "Gharama", icon: DollarSign, roles: ["owner"] },
-  { to: "/suppliers", label: "Wauzaji", icon: Truck, roles: ["owner"] },
-  { to: "/reports", label: "Ripoti", icon: BarChart, roles: ["owner"] },
-  { to: "/products", label: "Bidhaa", icon: Package, roles: ["owner"] },
-  { to: "/settings", label: "Mipangilio", icon: Settings, roles: ["owner"] },
+  { to: "/customers", label: "Customers", icon: Users, roles: ["owner", "cashier"] },
+  { to: "/expenses", label: "Expenses", icon: DollarSign, roles: ["owner"] },
+  { to: "/suppliers", label: "Suppliers", icon: Truck, roles: ["owner"] },
+  { to: "/reports", label: "Reports", icon: BarChart, roles: ["owner"] },
+  { to: "/products", label: "Products", icon: Package, roles: ["owner"] },
+  { to: "/settings", label: "Settings", icon: Settings, roles: ["owner"] },
 ];
 
 type AppShellProps = {
@@ -43,9 +44,11 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userRole, setUserRole] = useState<"owner" | "cashier" | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // --- Dark mode state & effect ---
+  // --- Dark mode ---
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("theme") as "light" | "dark" | null;
@@ -69,16 +72,20 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  // --- User role fetch ---
+  // --- User data ---
   useEffect(() => {
     let cancelled = false;
-    const fetchUserRole = async () => {
+    const fetchUserData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           if (!cancelled) navigate({ to: "/auth" });
           return;
         }
+        // Get user email
+        setUserEmail(session.user.email || "");
+        setUserName(session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User");
+
         const { data: staff, error } = await supabase
           .from("staff")
           .select("role")
@@ -92,13 +99,13 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           setUserRole((staff?.role as "owner" | "cashier") ?? "cashier");
         }
       } catch (err) {
-        console.error("Error fetching user role:", err);
+        console.error("Error fetching user data:", err);
         if (!cancelled) setUserRole("cashier");
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-    fetchUserRole();
+    fetchUserData();
     return () => {
       cancelled = true;
     };
@@ -137,6 +144,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background" suppressHydrationWarning>
+      {/* Mobile overlay */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -144,6 +152,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         />
       )}
 
+      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transition-transform duration-300",
@@ -151,22 +160,19 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-16 items-center justify-between px-4 border-b">
-          <div className="flex items-center gap-2">
-            <Store className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-lg">Wakuja Shop</span>
+        {/* Profile Section */}
+        <div className="flex flex-col items-center px-4 py-6 border-b">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            <User className="h-8 w-8" />
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="mt-3 text-center">
+            <p className="font-semibold text-sm">{userName}</p>
+            <p className="text-xs text-muted-foreground">{userEmail}</p>
+          </div>
         </div>
 
-        <div className="px-3 py-4 h-[calc(100vh-4rem)] flex flex-col">
+        {/* Navigation */}
+        <div className="px-3 py-4 h-[calc(100vh-12rem)] flex flex-col">
           <nav className="space-y-1 flex-1">
             {filteredNavItems.map((item) => {
               const isActive = router.state.location.pathname === item.to;
@@ -189,54 +195,70 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
             })}
           </nav>
 
-          <div className="pt-4 border-t">
+          {/* Bottom actions */}
+          <div className="pt-4 border-t space-y-2">
+            {/* Dark mode toggle */}
+            <button
+              onClick={toggleTheme}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            </button>
+
+            {/* Logout */}
             <Button
               variant="outline"
-              className="w-full justify-start gap-2 text-sm"
+              className="w-full justify-start gap-3 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
               onClick={handleLogout}
             >
               <LogOut className="h-4 w-4" />
-              Toka
+              Logout
             </Button>
           </div>
         </div>
       </aside>
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
-        <header className="flex h-16 items-center justify-between border-b px-4 lg:px-6">
+        {/* Mobile header */}
+        <header className="lg:hidden flex h-16 items-center justify-between border-b px-4">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
               onClick={() => setIsSidebarOpen(true)}
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <span className="text-sm font-medium text-muted-foreground">
-              {userRole === "owner" ? "Meneja" : "Cashier"}
-            </span>
+            <Store className="h-5 w-5 text-primary" />
+            <span className="font-semibold text-sm">Wakuja Shop</span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Dark Mode Toggle */}
             <button
               onClick={toggleTheme}
               className="rounded-full p-2 text-muted-foreground hover:bg-accent transition-colors"
-              aria-label="Toggle theme"
             >
               {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
+                <Sun className="h-4 w-4" />
               ) : (
-                <Moon className="h-5 w-5" />
+                <Moon className="h-4 w-4" />
               )}
             </button>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="lg:hidden">
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+        {/* Content with max-width and centering */}
+        <main className="flex-1 overflow-auto px-4 py-6 lg:px-8">
+          <div className="max-w-5xl mx-auto">{children}</div>
+        </main>
       </div>
     </div>
   );
