@@ -30,8 +30,13 @@ type TodaySale = {
   created_at: string;
   customers: {
     name: string | null;
-  } | null;
+  } | {
+    name: string | null;
+  }[] | null;
 };
+
+const getCustomerName = (customers: TodaySale["customers"]) =>
+  Array.isArray(customers) ? customers[0]?.name : customers?.name;
 
 type TodaySummary = {
   total_revenue: number;
@@ -118,7 +123,7 @@ function TodayPage() {
       const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
 
       return {
-        sales: sales || [],
+        sales: ((sales || []) as unknown as TodaySale[]),
         summary: {
           total_revenue: totalRevenue,
           total_sales: totalSales,
@@ -228,7 +233,7 @@ function TodayPage() {
               sales.map((sale) => (
                 <TableRow key={sale.id}>
                   <TableCell className="font-medium">{sale.receipt_number}</TableCell>
-                  <TableCell>{sale.customers?.name || "Mteja wa Oda"}</TableCell>
+                  <TableCell>{getCustomerName(sale.customers) || "Mteja wa Oda"}</TableCell>
                   <TableCell>{formatCurrency(sale.total)}</TableCell>
                   <TableCell>
                     <span
