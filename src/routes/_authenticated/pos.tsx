@@ -154,11 +154,14 @@ function PosPage() {
     },
   });
 
-  // --- Fetch customers ---
+  // --- Fetch customers (FIXED: alias customer_id as id) ---
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("v_customer_balances").select("*").order("name");
+      const { data, error } = await supabase
+        .from("v_customer_balances")
+        .select("customer_id as id, name, phone, balance")
+        .order("name");
       if (error) throw error;
       return data as Customer[];
     },
