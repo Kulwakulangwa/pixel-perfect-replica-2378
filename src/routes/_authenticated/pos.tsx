@@ -163,7 +163,6 @@ function PosPage() {
         .select("customer_id, name, phone, balance")
         .order("name");
       if (error) throw error;
-      // Map customer_id to id for the rest of the code
       return (data || []).map((item: any) => ({
         id: item.customer_id,
         name: item.name,
@@ -354,7 +353,6 @@ function PosPage() {
       return;
     }
 
-    // Ensure we have a valid shop_id and cashier_id
     const shopId = staffData?.shop_id || "11111111-1111-1111-1111-111111111111";
     const cashierId = userData?.id;
     if (!cashierId) {
@@ -400,7 +398,7 @@ function PosPage() {
           discount,
           total,
           payment_method: paymentMethod,
-          sale_type: paymentMethod === "credit" ? "credit" : "cash,
+          sale_type: paymentMethod === "credit" ? "credit" : "cash",
           status: "completed",
           created_at: saleData.created_at,
           synced: true,
@@ -410,7 +408,6 @@ function PosPage() {
         });
         if (saleError) {
           console.error("Sale insert error:", saleError);
-          // Show detailed error in toast
           const errorMsg = saleError.message || JSON.stringify(saleError);
           toast.error("Imeshindwa kuhifadhi mauzo: " + errorMsg);
           throw saleError;
@@ -457,10 +454,7 @@ function PosPage() {
     } catch (error) {
       console.error("Checkout error:", error);
       if (!(error instanceof Error && error.message.includes("Imeshindwa"))) {
-        // If we already showed a toast, don't show again
-        if (!error?.message?.includes("Imeshindwa")) {
-          toast.error("Imeshindwa kuhifadhi mauzo. Tafadhali angalia console kwa maelezo.");
-        }
+        toast.error("Imeshindwa kuhifadhi mauzo. Tafadhali angalia console kwa maelezo.");
       }
     } finally {
       setIsCheckingOut(false);
