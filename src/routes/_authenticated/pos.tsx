@@ -158,7 +158,6 @@ function PosPage() {
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      // ✅ Correct alias syntax with space
       const { data, error } = await supabase
         .from("v_customer_balances")
         .select("customer_id as id, name, phone, balance")
@@ -190,7 +189,10 @@ function PosPage() {
         .select("shop_id, can_discount, full_name")
         .eq("id", userData.id)
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching staff data:", error);
+        return null;
+      }
       return data;
     },
     enabled: !!userData,
@@ -335,7 +337,7 @@ function PosPage() {
   const subtotal = cart.reduce((sum, item) => sum + item.line_total, 0);
   const total = Math.max(0, subtotal - discount);
 
-  // --- Checkout ---
+  // --- Checkout with better error handling ---
   const handleCheckout = async () => {
     if (cart.length === 0) {
       toast.error("Hakuna bidhaa kwenye mkokoteni.");
@@ -346,13 +348,22 @@ function PosPage() {
       return;
     }
 
+    // Ensure we have a valid shop_id and cashier_id
+    const shopId = staffData?.shop_id || "11111111-1111-1111-1111-111111111111";
+    const cashierId = userData?.id;
+    if (!cashierId) {
+      toast.error("Hakuna cashier aliyeingia.");
+      return;
+    }
+
+    if (!shopId) {
+      toast.error("Duka halijapatikana. Tafadhali ingia tena.");
+      return;
+    }
+
     setIsCheckingOut(true);
     try {
       const saleId = crypto.randomUUID();
-      const shopId = staffData?.shop_id || "11111111-1111-1111-1111-111111111111";
-      const cashierId = userData?.id;
-      if (!cashierId) throw new Error("Hakuna cashier aliyeingia.");
-
       const receiptNumber = `REC-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
       const saleData = {
@@ -393,6 +404,8 @@ function PosPage() {
         });
         if (saleError) {
           console.error("Sale insert error:", saleError);
+          // Show detailed error in toast
+          toast.error("Imeshindwa kuhifadhi mauzo: " + (saleError.message || "Jaribu tena"));
           throw saleError;
         }
 
@@ -405,7 +418,10 @@ function PosPage() {
             quantity: item.quantity,
             line_total: item.line_total,
           });
-          if (itemError) throw itemError;
+          if (itemError) {
+            console.error("Item insert error:", itemError);
+            throw itemError;
+          }
         }
 
         toast.success("Mauzo yamehifadhiwa!");
@@ -433,7 +449,10 @@ function PosPage() {
       }
     } catch (error) {
       console.error("Checkout error:", error);
-      toast.error("Imeshindwa kuhifadhi mauzo. Jaribu tena.");
+      // If error is not already displayed, show generic message
+      if (!(error instanceof Error && error.message.includes("Imeshindwa"))) {
+        toast.error("Imeshindwa kuhifadhi mauzo. Tafadhali angalia console kwa maelezo.");
+      }
     } finally {
       setIsCheckingOut(false);
     }
