@@ -47,6 +47,7 @@ type Product = {
   current_stock: number;
   minimum_stock: number;
   image_url: string | null;
+  expiry_date: string | null;
   is_active: boolean;
 };
 
@@ -82,14 +83,13 @@ function ProductsPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  // --- Filters ---
   const filtered = products.filter((p) => {
     if (q && !p.name.toLowerCase().includes(q.toLowerCase())) return false;
     if (showLowOnly && p.current_stock > p.minimum_stock) return false;
     return true;
   });
 
-  // --- Stats ---
+  // Stats
   const totalProducts = products.length;
   const lowStockCount = products.filter((p) => p.current_stock <= p.minimum_stock).length;
   const totalInventoryValue = products.reduce((sum, p) => sum + p.buying_price * p.current_stock, 0);
@@ -145,7 +145,7 @@ function ProductsPage() {
         />
       </div>
 
-      {/* Search & Filter Bar */}
+      {/* Search & Filter */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -239,6 +239,11 @@ function ProductsPage() {
                         <div className="text-[11px] text-muted-foreground">min {p.minimum_stock}</div>
                       </div>
                     </div>
+                    {p.expiry_date && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Expires: {new Date(p.expiry_date).toLocaleDateString()}
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
@@ -278,7 +283,7 @@ function ProductsPage() {
   );
 }
 
-// --- Helper Components ---
+// --- Helpers (StatCard, ProductThumb) ---
 
 const STAT_STYLES = {
   dark: {
@@ -360,6 +365,7 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
   const [stock, setStock] = useState(String(product?.current_stock ?? "0"));
   const [minStock, setMinStock] = useState(String(product?.minimum_stock ?? "5"));
   const [imageUrl, setImageUrl] = useState(product?.image_url ?? "");
+  const [expiryDate, setExpiryDate] = useState(product?.expiry_date || "");
   const [uploading, setUploading] = useState(false);
 
   const save = useMutation({
@@ -377,6 +383,7 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
         current_stock: Number(stock) || 0,
         minimum_stock: Number(minStock) || 0,
         image_url: imageUrl || null,
+        expiry_date: expiryDate || null,
       };
 
       if (product) {
@@ -390,6 +397,7 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["pos-products"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-expiring"] });
       toast.success(product ? "Imesasishwa" : "Imeongezwa");
       onDone();
     },
@@ -456,6 +464,14 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
               onChange={(e) => setMinStock(e.target.value)}
             />
           </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Tarehe ya Kuisha (Expiry Date)</Label>
+          <Input
+            type="date"
+            value={expiryDate}
+            onChange={(e) => setExpiryDate(e.target.value)}
+          />
         </div>
         <div className="space-y-2">
           <Label>Picha (hiari)</Label>
