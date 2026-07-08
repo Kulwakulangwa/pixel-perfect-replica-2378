@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
+import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/currency";
 import {
   AlertTriangle,
@@ -10,6 +12,7 @@ import {
   Receipt,
   Wallet,
   ArrowUpRight,
+  Loader2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -17,48 +20,146 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
-// ----- Mock data (static) -----
-const MOCK_DEBTORS = [
-  { customer_id: "1", name: "John Doe", phone: "0712345678", balance: 45000 },
-  { customer_id: "2", name: "Jane Smith", phone: "0712345679", balance: 23000 },
-];
-const MOCK_LOW_STOCK = [
-  { id: "1", name: "Sugar", current_stock: 2, minimum_stock: 10 },
-  { id: "2", name: "Cooking Oil", current_stock: 5, minimum_stock: 8 },
-];
-const MOCK_BEST_SELLERS = [
-  { product_id: "1", product_name: "Maize Flour", units_sold: 45, revenue: 67500 },
-  { product_id: "2", product_name: "Rice", units_sold: 30, revenue: 45000 },
-];
-const MOCK_RECENT_SALES = [
-  { id: "1", receipt_number: "REC-123", total: 15000, sale_type: "cash", payment_method: "cash", created_at: new Date().toISOString() },
-  { id: "2", receipt_number: "REC-124", total: 25000, sale_type: "credit", payment_method: "credit", created_at: new Date().toISOString() },
-];
-
-const MOCK_TOTALS = {
-  todayRev: 15000,
-  todayProfit: 3000,
-  weekRev: 85000,
-  monthRev: 320000,
-  monthProfit: 64000,
-};
-const MOCK_DEBT_TOTAL = 68000;
-
 function DashboardPage() {
-  // No real queries – all data is mocked
-  const debtors = MOCK_DEBTORS;
-  const lowStock = MOCK_LOW_STOCK;
-  const bestSellers = MOCK_BEST_SELLERS;
-  const recentSales = MOCK_RECENT_SALES;
-  const totals = MOCK_TOTALS;
-  const totalDebt = MOCK_DEBT_TOTAL;
+  // --- Get current user (with staleTime: 0) ---
+  const { data: user, isLoading: userLoading } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      return user;
+    },
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+
+  // Dates – moved to useEffect to avoid hydration mismatch
+  const [now] = useState(() => new Date());
+  const [todayStr, setTodayStr] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [startOfWeek, setStartOfWeek] = useState<Date>(new Date());
+  const [startOfMonth, setStartOfMonth] = useState<Date>(new Date());
+
+  useEffect(() => {
+    setTodayStr(now.toISOString().slice(0, 10));
+    const sw = new Date(now);
+    sw.setDate(now.getDate() - now.getDay());
+    setStartOfWeek(sw);
+    const sm = new Date(now.getFullYear(), now.getMonth(), 1);
+    setStartOfMonth(sm);
+    const f = new Date(now);
+    f.setDate(now.getDate() - 30);
+    setFromDate(f.toISOString().slice(0, 10));
+    setToDate(now.toISOString().slice(0, 10));
+  }, [now]);
+
+  // --- Data queries (enabled only after user loads) ---
+  const { data: summary, isLoading: summaryLoading } = useQuery({
+    queryKey: ["report-summary", fromDate, toDate],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("report_sales_summary", {
+        _from: fromDate,
+        _to: toDate,
+      });
+      if (error) throw error;
+      return data as Array<{ day: string; sales_count: number; revenue: number; cost: number; profit: number; discount_total: number }>;
+    },
+    enabled: !!user && !!fromDate && !!toDate,
+    staleTime: 0,
+  });
+
+  const { data: debtors, isLoading: debtorsLoading } = useQuery({
+    queryKey: ["dashboard-debtors"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_customer_balances")
+        .select("customer_id, name, phone, balance, last_purchase_at")
+        .gt("balance", 0)
+        .order("balance", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data as Array<{ customer_id: string; name: string; phone: string | null; balance: number; last_purchase_at: string | null }>;
+    },
+    enabled: !!user,
+    staleTime: 0,
+  });
+
+  const { data: lowStock, isLoading: lowStockLoading } = useQuery({
+    queryKey: ["dashboard-low-stock"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_low_stock").select("id, name, current_stock, minimum_stock").limit(6);
+      if (error) throw error;
+      return data as Array<{ id: string; name: string; current_stock: number; minimum_stock: number }>;
+    },
+    enabled: !!user,
+    staleTime: 0,
+  });
+
+  const { data: bestSellers, isLoading: bestSellersLoading } = useQuery({
+    queryKey: ["dashboard-best-sellers"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("v_best_sellers").select("product_id, product_name, units_sold, revenue").order("revenue", { ascending: false }).limit(5);
+      if (error) throw error;
+      return data as Array<{ product_id: string; product_name: string; units_sold: number; revenue: number }>;
+    },
+    enabled: !!user,
+    staleTime: 0,
+  });
+
+  const { data: recentSales, isLoading: recentSalesLoading } = useQuery({
+    queryKey: ["dashboard-recent-sales"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sales").select("id, receipt_number, total, sale_type, payment_method, created_at").order("created_at", { ascending: false }).limit(6);
+      if (error) throw error;
+      return data as Array<{ id: string; receipt_number: string; total: number; sale_type: string; payment_method: string | null; created_at: string }>;
+    },
+    enabled: !!user,
+    staleTime: 0,
+  });
+
+  const isLoading = userLoading || summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
+
+  // --- If user is still loading, show spinner ---
+  if (userLoading || !user) {
+    return (
+      <AppShell>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  const isSameDay = (s: string) => s === todayStr;
+  const inRange = (d: string, start: Date) => new Date(d) >= start;
+
+  const rows = summary ?? [];
+  const totals = {
+    todayRev: rows.filter((r) => isSameDay(r.day)).reduce((s, r) => s + Number(r.revenue), 0),
+    todayProfit: rows.filter((r) => isSameDay(r.day)).reduce((s, r) => s + Number(r.profit), 0),
+    weekRev: rows.filter((r) => inRange(r.day, startOfWeek)).reduce((s, r) => s + Number(r.revenue), 0),
+    monthRev: rows.filter((r) => inRange(r.day, startOfMonth)).reduce((s, r) => s + Number(r.revenue), 0),
+    monthProfit: rows.filter((r) => inRange(r.day, startOfMonth)).reduce((s, r) => s + Number(r.profit), 0),
+  };
+
+  const totalDebt = (debtors ?? []).reduce((s, d) => s + Number(d.balance), 0);
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell requireOwner>
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Dashboard" description="Muhtasari wa duka lako" />
 
-        {/* Stat row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
           <StatCard
             label="Mauzo Leo"
@@ -84,19 +185,18 @@ function DashboardPage() {
           <StatCard
             label="Deni jumla"
             value={formatMoney(totalDebt)}
-            sub={`${debtors.length} wateja wenye deni`}
+            sub={`${debtors?.length ?? 0} wateja wenye deni`}
             icon={Users}
             variant="rose"
           />
         </div>
 
-        {/* Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <Card className="lg:col-span-2">
             <CardHeader icon={Users} iconBg="bg-[#EFE7FF] text-[#7C5CFC] dark:bg-[#2a1a4a] dark:text-[#a88cff]" title="Wateja wenye deni" href="/customers" />
             <div className="divide-y divide-border/60 dark:divide-border/20">
-              {debtors.length === 0 && <EmptyRow msg="Hakuna deni kwa sasa." />}
-              {debtors.map((d) => (
+              {(debtors ?? []).length === 0 && <EmptyRow msg="Hakuna deni kwa sasa." />}
+              {(debtors ?? []).map((d) => (
                 <Link
                   key={d.customer_id}
                   to="/customers/$id"
@@ -107,7 +207,7 @@ function DashboardPage() {
                     <Avatar name={d.name} />
                     <div>
                       <div className="font-medium text-sm dark:text-foreground">{d.name}</div>
-                      <div className="text-xs text-muted-foreground dark:text-muted-foreground/80">{d.phone}</div>
+                      <div className="text-xs text-muted-foreground dark:text-muted-foreground/80">{d.phone ?? "—"}</div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -121,12 +221,12 @@ function DashboardPage() {
           <Card>
             <CardHeader icon={AlertTriangle} iconBg="bg-[#FFF1DE] text-[#F5A623] dark:bg-[#3a2a10] dark:text-[#fbbf24]" title="Bidhaa zinaisha" href="/inventory" />
             <div className="divide-y divide-border/60 dark:divide-border/20">
-              {lowStock.length === 0 && <EmptyRow msg="Vyote viko sawa." />}
-              {lowStock.map((p) => (
+              {(lowStock ?? []).length === 0 && <EmptyRow msg="Vyote viko sawa." />}
+              {(lowStock ?? []).map((p) => (
                 <div key={p.id} className="flex items-center justify-between py-3">
                   <div className="text-sm font-medium dark:text-foreground">{p.name}</div>
                   <div className="text-xs">
-                    <span className="text-[#F5A623] dark:text-[#fbbf24] font-semibold">
+                    <span className={p.current_stock === 0 ? "text-[#E4574A] dark:text-[#f87171] font-semibold" : "text-[#F5A623] dark:text-[#fbbf24] font-semibold"}>
                       {p.current_stock}
                     </span>
                     <span className="text-muted-foreground dark:text-muted-foreground/70"> / min {p.minimum_stock}</span>
@@ -139,8 +239,8 @@ function DashboardPage() {
           <Card>
             <CardHeader icon={TrendingUp} iconBg="bg-[#E4F7EC] text-[#2FAE60] dark:bg-[#0a2a1a] dark:text-[#34d399]" title="Bidhaa zinauzwa zaidi" href="/reports" />
             <div className="divide-y divide-border/60 dark:divide-border/20">
-              {bestSellers.length === 0 && <EmptyRow msg="Bado hakuna mauzo." />}
-              {bestSellers.map((b, i) => (
+              {(bestSellers ?? []).length === 0 && <EmptyRow msg="Bado hakuna mauzo." />}
+              {(bestSellers ?? []).map((b, i) => (
                 <div key={b.product_id} className="flex items-center justify-between py-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#16294A] dark:bg-[#2a4a7a] text-[11px] font-semibold text-white">
@@ -157,8 +257,8 @@ function DashboardPage() {
           <Card className="lg:col-span-2">
             <CardHeader icon={Package} iconBg="bg-[#DCEBFF] text-[#2E6BE6] dark:bg-[#0a1a3a] dark:text-[#60a5fa]" title="Mauzo ya hivi karibuni" href="/sales" />
             <div className="divide-y divide-border/60 dark:divide-border/20">
-              {recentSales.length === 0 && <EmptyRow msg="Bado hakuna mauzo." />}
-              {recentSales.map((s) => (
+              {(recentSales ?? []).length === 0 && <EmptyRow msg="Bado hakuna mauzo." />}
+              {(recentSales ?? []).map((s) => (
                 <Link
                   key={s.id}
                   to="/sales/$id"
@@ -172,7 +272,7 @@ function DashboardPage() {
                     <div>
                       <div className="text-sm font-medium dark:text-foreground">#{s.receipt_number}</div>
                       <div className="text-xs text-muted-foreground dark:text-muted-foreground/80">
-                        {new Date(s.created_at).toLocaleString()} · {s.sale_type === "credit" ? "Deni" : "Cash"}
+                        {new Date(s.created_at).toLocaleString()} · {s.sale_type === "credit" ? "Deni" : s.payment_method === "lipa_namba" ? "Lipa Namba" : "Cash"}
                       </div>
                     </div>
                   </div>
@@ -190,8 +290,7 @@ function DashboardPage() {
   );
 }
 
-// ----- Helpers (same as before) -----
-
+// ----- Helpers (unchanged) -----
 const VARIANT_STYLES = {
   dark: {
     card: "bg-[#16294A] text-white dark:bg-[#0a1628] dark:text-slate-200 border-transparent",
