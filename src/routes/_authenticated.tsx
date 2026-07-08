@@ -8,7 +8,6 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const [loading, setLoading] = useState(true);
-  const [redirect, setRedirect] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -20,7 +19,6 @@ function AuthenticatedLayout() {
         }
         return;
       }
-      // Success: let the child routes render
       if (mounted) setLoading(false);
     };
     checkSession();
