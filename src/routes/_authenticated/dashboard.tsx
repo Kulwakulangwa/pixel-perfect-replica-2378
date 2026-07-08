@@ -12,7 +12,7 @@ import {
   Receipt,
   Wallet,
   ArrowUpRight,
-  Loader2, // <-- added here
+  Loader2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -28,7 +28,7 @@ function DashboardPage() {
   const [startOfWeek, setStartOfWeek] = useState<Date>(new Date());
   const [startOfMonth, setStartOfMonth] = useState<Date>(new Date());
 
-  // Get current user
+  // --- Get current user (with staleTime: 0) ---
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
@@ -36,7 +36,20 @@ function DashboardPage() {
       if (error) throw error;
       return user;
     },
+    staleTime: 0,
+    refetchOnMount: true,
   });
+
+  // 🛡️ Guard: don't render until user is loaded
+  if (userLoading || !user) {
+    return (
+      <AppShell>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
 
   useEffect(() => {
     setTodayStr(now.toISOString().slice(0, 10));
@@ -51,7 +64,7 @@ function DashboardPage() {
     setToDate(now.toISOString().slice(0, 10));
   }, [now]);
 
-  // Summary query – only runs when user is loaded and dates are set
+  // --- Queries (enabled only after user exists) ---
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["report-summary", fromDate, toDate],
     queryFn: async () => {
@@ -62,10 +75,10 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ day: string; sales_count: number; revenue: number; cost: number; profit: number; discount_total: number }>;
     },
-    enabled: !!user && !!fromDate && !!toDate,
+    enabled: !!fromDate && !!toDate,
+    staleTime: 0,
   });
 
-  // Debtors – only after user loads
   const { data: debtors, isLoading: debtorsLoading } = useQuery({
     queryKey: ["dashboard-debtors"],
     queryFn: async () => {
@@ -78,10 +91,9 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ customer_id: string; name: string; phone: string | null; balance: number; last_purchase_at: string | null }>;
     },
-    enabled: !!user,
+    staleTime: 0,
   });
 
-  // Low stock – only after user loads
   const { data: lowStock, isLoading: lowStockLoading } = useQuery({
     queryKey: ["dashboard-low-stock"],
     queryFn: async () => {
@@ -89,10 +101,9 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ id: string; name: string; current_stock: number; minimum_stock: number }>;
     },
-    enabled: !!user,
+    staleTime: 0,
   });
 
-  // Best sellers – only after user loads
   const { data: bestSellers, isLoading: bestSellersLoading } = useQuery({
     queryKey: ["dashboard-best-sellers"],
     queryFn: async () => {
@@ -100,10 +111,9 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ product_id: string; product_name: string; units_sold: number; revenue: number }>;
     },
-    enabled: !!user,
+    staleTime: 0,
   });
 
-  // Recent sales – only after user loads
   const { data: recentSales, isLoading: recentSalesLoading } = useQuery({
     queryKey: ["dashboard-recent-sales"],
     queryFn: async () => {
@@ -111,10 +121,10 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ id: string; receipt_number: string; total: number; sale_type: string; payment_method: string | null; created_at: string }>;
     },
-    enabled: !!user,
+    staleTime: 0,
   });
 
-  const isLoading = userLoading || summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
+  const isLoading = summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
 
   const isSameDay = (s: string) => s === todayStr;
   const inRange = (d: string, start: Date) => new Date(d) >= start;
@@ -130,7 +140,6 @@ function DashboardPage() {
 
   const totalDebt = (debtors ?? []).reduce((s, d) => s + Number(d.balance), 0);
 
-  // Loading state
   if (isLoading) {
     return (
       <AppShell>
@@ -146,7 +155,6 @@ function DashboardPage() {
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Dashboard" description="Muhtasari wa duka lako" />
 
-        {/* Stat row — dark navy hero card + three light cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
           <StatCard
             label="Mauzo Leo"
