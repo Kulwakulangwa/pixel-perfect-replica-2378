@@ -21,7 +21,12 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
-  // --- All hooks MUST be called unconditionally at the top ---
+  // --- Hydration guard: only render dynamic content after client mount ---
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
   const [now] = useState(() => new Date());
   const [todayStr, setTodayStr] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -29,7 +34,7 @@ function DashboardPage() {
   const [startOfWeek, setStartOfWeek] = useState<Date>(new Date());
   const [startOfMonth, setStartOfMonth] = useState<Date>(new Date());
 
-  // 1. Get current user
+  // --- Get current user (with staleTime: 0) ---
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
@@ -41,8 +46,9 @@ function DashboardPage() {
     refetchOnMount: true,
   });
 
-  // 2. Date effect (unconditional)
+  // Set dates only on client after hydration
   useEffect(() => {
+    if (!hydrated) return;
     setTodayStr(now.toISOString().slice(0, 10));
     const sw = new Date(now);
     sw.setDate(now.getDate() - now.getDay());
@@ -53,9 +59,9 @@ function DashboardPage() {
     f.setDate(now.getDate() - 30);
     setFromDate(f.toISOString().slice(0, 10));
     setToDate(now.toISOString().slice(0, 10));
-  }, [now]);
+  }, [hydrated, now]);
 
-  // 3. Data queries (unconditional, but with enabled flag)
+  // --- Queries (enabled only after user exists) ---
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["report-summary", fromDate, toDate],
     queryFn: async () => {
@@ -66,7 +72,7 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ day: string; sales_count: number; revenue: number; cost: number; profit: number; discount_total: number }>;
     },
-    enabled: !!fromDate && !!toDate,
+    enabled: !!fromDate && !!toDate && !!user,
     staleTime: 0,
   });
 
@@ -82,6 +88,7 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ customer_id: string; name: string; phone: string | null; balance: number; last_purchase_at: string | null }>;
     },
+    enabled: !!user,
     staleTime: 0,
   });
 
@@ -92,6 +99,7 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ id: string; name: string; current_stock: number; minimum_stock: number }>;
     },
+    enabled: !!user,
     staleTime: 0,
   });
 
@@ -102,6 +110,7 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ product_id: string; product_name: string; units_sold: number; revenue: number }>;
     },
+    enabled: !!user,
     staleTime: 0,
   });
 
@@ -112,11 +121,14 @@ function DashboardPage() {
       if (error) throw error;
       return data as Array<{ id: string; receipt_number: string; total: number; sale_type: string; payment_method: string | null; created_at: string }>;
     },
+    enabled: !!user,
     staleTime: 0,
   });
 
-  // --- Early returns (after hooks) ---
-  if (userLoading || !user) {
+  const isLoading = summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
+
+  // --- Server and client both show spinner until hydration ---
+  if (!hydrated) {
     return (
       <AppShell>
         <div className="flex justify-center items-center h-64">
@@ -126,7 +138,15 @@ function DashboardPage() {
     );
   }
 
-  const isLoading = summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
+  if (userLoading || !user) {
+    return (
+      <AppShell>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
 
   const isSameDay = (s: string) => s === todayStr;
   const inRange = (d: string, start: Date) => new Date(d) >= start;
@@ -152,13 +172,11 @@ function DashboardPage() {
     );
   }
 
-  // --- Render actual content ---
   return (
     <AppShell requireOwner>
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Dashboard" description="Muhtasari wa duka lako" />
 
-        {/* Stat row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
           <StatCard
             label="Mauzo Leo"
@@ -190,7 +208,6 @@ function DashboardPage() {
           />
         </div>
 
-        {/* Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <Card className="lg:col-span-2">
             <CardHeader icon={Users} iconBg="bg-[#EFE7FF] text-[#7C5CFC] dark:bg-[#2a1a4a] dark:text-[#a88cff]" title="Wateja wenye deni" href="/customers" />
