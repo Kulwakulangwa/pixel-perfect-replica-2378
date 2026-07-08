@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
+  // --- All hooks MUST be called unconditionally at the top ---
   const [now] = useState(() => new Date());
   const [todayStr, setTodayStr] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -28,7 +29,7 @@ function DashboardPage() {
   const [startOfWeek, setStartOfWeek] = useState<Date>(new Date());
   const [startOfMonth, setStartOfMonth] = useState<Date>(new Date());
 
-  // --- Get current user (with staleTime: 0) ---
+  // 1. Get current user
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
@@ -40,17 +41,7 @@ function DashboardPage() {
     refetchOnMount: true,
   });
 
-  // 🛡️ Guard: don't render until user is loaded
-  if (userLoading || !user) {
-    return (
-      <AppShell>
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </AppShell>
-    );
-  }
-
+  // 2. Date effect (unconditional)
   useEffect(() => {
     setTodayStr(now.toISOString().slice(0, 10));
     const sw = new Date(now);
@@ -64,7 +55,7 @@ function DashboardPage() {
     setToDate(now.toISOString().slice(0, 10));
   }, [now]);
 
-  // --- Queries (enabled only after user exists) ---
+  // 3. Data queries (unconditional, but with enabled flag)
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["report-summary", fromDate, toDate],
     queryFn: async () => {
@@ -124,6 +115,17 @@ function DashboardPage() {
     staleTime: 0,
   });
 
+  // --- Early returns (after hooks) ---
+  if (userLoading || !user) {
+    return (
+      <AppShell>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   const isLoading = summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
 
   const isSameDay = (s: string) => s === todayStr;
@@ -150,11 +152,13 @@ function DashboardPage() {
     );
   }
 
+  // --- Render actual content ---
   return (
     <AppShell requireOwner>
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Dashboard" description="Muhtasari wa duka lako" />
 
+        {/* Stat row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
           <StatCard
             label="Mauzo Leo"
@@ -186,6 +190,7 @@ function DashboardPage() {
           />
         </div>
 
+        {/* Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <Card className="lg:col-span-2">
             <CardHeader icon={Users} iconBg="bg-[#EFE7FF] text-[#7C5CFC] dark:bg-[#2a1a4a] dark:text-[#a88cff]" title="Wateja wenye deni" href="/customers" />
