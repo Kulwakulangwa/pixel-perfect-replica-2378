@@ -15,11 +15,10 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  // ✅ Removed ssr: false – now server‑rendered
   component: DashboardPage,
 });
 
-// --- Skeleton (matches the dashboard layout) ---
+// --- Skeleton ---
 function DashboardSkeleton() {
   return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto animate-pulse">
@@ -34,13 +33,13 @@ function DashboardSkeleton() {
         <div className="h-64 bg-muted rounded-2xl" />
         <div className="h-64 bg-muted rounded-2xl" />
         <div className="lg:col-span-2 h-64 bg-muted rounded-2xl" />
+        <div className="lg:col-span-3 h-64 bg-muted rounded-2xl" />
       </div>
     </div>
   );
 }
 
 function DashboardPage() {
-  // --- Get current user (with staleTime: 0) ---
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
@@ -52,7 +51,6 @@ function DashboardPage() {
     refetchOnMount: true,
   });
 
-  // Dates – moved to useEffect to avoid hydration mismatch
   const [now] = useState(() => new Date());
   const [todayStr, setTodayStr] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -73,7 +71,6 @@ function DashboardPage() {
     setToDate(now.toISOString().slice(0, 10));
   }, [now]);
 
-  // --- Data queries (enabled only after user loads) ---
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["report-summary", fromDate, toDate],
     queryFn: async () => {
@@ -137,9 +134,30 @@ function DashboardPage() {
     staleTime: 0,
   });
 
-  const isLoading = userLoading || summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
+  // NEW: Expiring products (next 7 days)
+  const { data: expiringProducts, isLoading: expiringLoading } = useQuery({
+    queryKey: ["dashboard-expiring"],
+    queryFn: async () => {
+      const today = new Date();
+      const nextWeek = new Date();
+      nextWeek.setDate(today.getDate() + 7);
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, current_stock, expiry_date")
+        .eq("is_active", true)
+        .gte("expiry_date", today.toISOString().split("T")[0])
+        .lte("expiry_date", nextWeek.toISOString().split("T")[0])
+        .order("expiry_date", { ascending: true })
+        .limit(6);
+      if (error) throw error;
+      return data as Array<{ id: string; name: string; current_stock: number; expiry_date: string }>;
+    },
+    enabled: !!user,
+    staleTime: 0,
+  });
 
-  // --- Use skeleton while user is loading ---
+  const isLoading = userLoading || summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading || expiringLoading;
+
   if (userLoading || !user) {
     return (
       <AppShell>
@@ -162,7 +180,6 @@ function DashboardPage() {
 
   const totalDebt = (debtors ?? []).reduce((s, d) => s + Number(d.balance), 0);
 
-  // --- Use skeleton while data is loading ---
   if (isLoading) {
     return (
       <AppShell requireOwner>
@@ -297,6 +314,27 @@ function DashboardPage() {
                     <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground dark:text-muted-foreground/70" />
                   </div>
                 </Link>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* NEW: Expiring Products Card – full width row */}
+        <div className="mt-6">
+          <Card>
+            <CardHeader icon={AlertTriangle} iconBg="bg-[#FFF1DE] text-[#F5A623] dark:bg-[#3a2a10] dark:text-[#fbbf24]" title="Bidhaa zinazoisha muda" href="/products" />
+            <div className="divide-y divide-border/60 dark:divide-border/20">
+              {(expiringProducts ?? []).length === 0 && <EmptyRow msg="Hakuna bidhaa zinazoisha karibuni." />}
+              {(expiringProducts ?? []).map((p) => (
+                <div key={p.id} className="flex items-center justify-between py-3">
+                  <div className="text-sm font-medium dark:text-foreground">{p.name}</div>
+                  <div className="text-xs">
+                    <span className="text-[#E4574A] dark:text-[#f87171] font-semibold">
+                      {p.current_stock}
+                    </span>
+                    <span className="text-muted-foreground dark:text-muted-foreground/70"> · {new Date(p.expiry_date).toLocaleDateString()}</span>
+                  </div>
+                </div>
               ))}
             </div>
           </Card>
