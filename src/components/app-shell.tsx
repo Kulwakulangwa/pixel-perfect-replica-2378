@@ -186,6 +186,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
                 <Link
                   key={item.to}
                   to={item.to}
+                  preload="intent" // ✅ Prefetch on hover
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
                     isActive
