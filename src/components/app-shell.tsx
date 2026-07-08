@@ -48,16 +48,21 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // Dark mode
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("theme") as "light" | "dark" | null;
-      if (stored) return stored;
-      if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
-    }
-    return "light";
-  });
+  // --- FIXED: Hydration‑safe theme initialization ---
+  // Always start with "light" on first render (matches server).
+  // Then read localStorage/matchMedia only after mount.
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
+  useEffect(() => {
+    const stored = localStorage.getItem("theme") as "light" | "dark" | null;
+    if (stored) {
+      setTheme(stored);
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      setTheme("dark");
+    }
+  }, []);
+
+  // Apply theme class to <html> and persist preference
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
