@@ -18,7 +18,7 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // --- Dark mode state (mirrors AppShell) ---
+  // Dark mode state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("theme") as "light" | "dark" | null;
@@ -42,7 +42,6 @@ function AuthPage() {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  // --- Auth logic ---
   // Check if already logged in
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -71,10 +70,7 @@ function AuthPage() {
       });
       if (error) throw error;
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
       if (!session) {
         throw new Error("Login succeeded but the session is not ready yet. Please wait a moment and try again.");
