@@ -12,13 +12,32 @@ import {
   Receipt,
   Wallet,
   ArrowUpRight,
-  Loader2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  ssr: false,
+  // ✅ Removed ssr: false – now server‑rendered
   component: DashboardPage,
 });
+
+// --- Skeleton (matches the dashboard layout) ---
+function DashboardSkeleton() {
+  return (
+    <div className="p-4 lg:p-8 max-w-7xl mx-auto animate-pulse">
+      <div className="h-8 w-48 bg-muted rounded mb-6" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-24 bg-muted rounded-2xl" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div className="lg:col-span-2 h-64 bg-muted rounded-2xl" />
+        <div className="h-64 bg-muted rounded-2xl" />
+        <div className="h-64 bg-muted rounded-2xl" />
+        <div className="lg:col-span-2 h-64 bg-muted rounded-2xl" />
+      </div>
+    </div>
+  );
+}
 
 function DashboardPage() {
   // --- Get current user (with staleTime: 0) ---
@@ -120,13 +139,11 @@ function DashboardPage() {
 
   const isLoading = userLoading || summaryLoading || debtorsLoading || lowStockLoading || bestSellersLoading || recentSalesLoading;
 
-  // --- If user is still loading, show spinner ---
+  // --- Use skeleton while user is loading ---
   if (userLoading || !user) {
     return (
       <AppShell>
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <DashboardSkeleton />
       </AppShell>
     );
   }
@@ -145,12 +162,11 @@ function DashboardPage() {
 
   const totalDebt = (debtors ?? []).reduce((s, d) => s + Number(d.balance), 0);
 
+  // --- Use skeleton while data is loading ---
   if (isLoading) {
     return (
-      <AppShell>
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+      <AppShell requireOwner>
+        <DashboardSkeleton />
       </AppShell>
     );
   }
