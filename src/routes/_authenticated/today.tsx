@@ -15,9 +15,24 @@ import {
 import { Loader2, TrendingUp, ShoppingBag, CreditCard, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/today")({
-  ssr: false,
+  // ✅ Removed ssr: false
   component: TodayPage,
 });
+
+// --- Skeleton (matches the today layout) ---
+function TodaySkeleton() {
+  return (
+    <div className="p-4 lg:p-8 max-w-7xl mx-auto animate-pulse">
+      <div className="h-8 w-48 bg-muted rounded mb-6" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-24 bg-muted rounded-2xl" />
+        ))}
+      </div>
+      <div className="h-64 bg-muted rounded-2xl" />
+    </div>
+  );
+}
 
 type TodaySale = {
   id: string;
@@ -57,7 +72,7 @@ function TodayPage() {
     },
   });
 
-  const { data: staff } = useQuery({
+  const { data: staff, isLoading: staffLoading } = useQuery({
     queryKey: ["currentStaff"],
     queryFn: async () => {
       if (!user) return null;
@@ -81,7 +96,6 @@ function TodayPage() {
       const from = startOfToday().toISOString();
       const to = endOfToday().toISOString();
 
-      // First: fetch all sales with cashier_id
       const { data: sales, error: salesError } = await supabase
         .from("sales")
         .select(`
@@ -102,7 +116,6 @@ function TodayPage() {
 
       if (salesError) throw salesError;
 
-      // Second: fetch cashier names for all unique cashier_ids
       const cashierIds = [...new Set(sales?.map(s => s.cashier_id).filter(Boolean))];
       let cashierNames: Record<string, string> = {};
       if (cashierIds.length > 0) {
@@ -118,21 +131,15 @@ function TodayPage() {
         }
       }
 
-      // Attach cashier name to each sale
       const enrichedSales = sales?.map(sale => ({
         ...sale,
         cashier_name: cashierNames[sale.cashier_id] || sale.cashier_id.slice(0, 8),
       })) || [];
 
-      // --- FIX: Use sale_type for cash/credit distinction ---
       const totalRevenue = enrichedSales.reduce((sum, s) => sum + s.total, 0) || 0;
       const totalSales = enrichedSales.length || 0;
-      const totalCash = enrichedSales
-        .filter(s => s.sale_type === 'cash')
-        .reduce((sum, s) => sum + s.total, 0) || 0;
-      const totalCredit = enrichedSales
-        .filter(s => s.sale_type === 'credit')
-        .reduce((sum, s) => sum + s.total, 0) || 0;
+      const totalCash = enrichedSales.filter(s => s.sale_type === 'cash').reduce((sum, s) => sum + s.total, 0) || 0;
+      const totalCredit = enrichedSales.filter(s => s.sale_type === 'credit').reduce((sum, s) => sum + s.total, 0) || 0;
       const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
 
       return {
@@ -158,7 +165,7 @@ function TodayPage() {
 
   const formatTime = (iso: string) => format(new Date(iso), "HH:mm");
 
-  // --- Stat card component (mirrors dashboard) ---
+  // --- Stat card component ---
   const STAT_STYLES = {
     dark: {
       card: "bg-[#16294A] dark:bg-[#0a1628] text-white dark:text-slate-200 border-transparent",
@@ -210,13 +217,20 @@ function TodayPage() {
     );
   }
 
-  // --- Loading & error states ---
+  // --- Use skeleton while staff is loading ---
+  if (staffLoading) {
+    return (
+      <AppShell>
+        <TodaySkeleton />
+      </AppShell>
+    );
+  }
+
+  // --- Use skeleton while sales are loading ---
   if (isLoading) {
     return (
       <AppShell>
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        </div>
+        <TodaySkeleton />
       </AppShell>
     );
   }
@@ -236,7 +250,6 @@ function TodayPage() {
       <div className="p-4 lg:p-8 max-w-7xl mx-auto">
         <PageHeader title="Mauzo ya Leo" description={dateDescription} />
 
-        {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             label="Jumla ya Mauzo"
@@ -265,7 +278,6 @@ function TodayPage() {
           />
         </div>
 
-        {/* Sales Table */}
         <div className="rounded-2xl border border-border bg-white dark:bg-[#121212] overflow-hidden shadow-sm">
           <Table>
             <TableHeader>
