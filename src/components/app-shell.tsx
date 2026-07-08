@@ -48,9 +48,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // --- FIXED: Hydration‑safe theme initialization ---
-  // Always start with "light" on first render (matches server).
-  // Then read localStorage/matchMedia only after mount.
+  // --- Hydration‑safe theme initialization ---
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
@@ -62,7 +60,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     }
   }, []);
 
-  // Apply theme class to <html> and persist preference
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
@@ -85,14 +82,16 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
     return unsub;
   }, [router]);
 
-  // User data
+  // User data – no redirect; let the route handle it
   useEffect(() => {
     let cancelled = false;
     const fetchUserData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          if (!cancelled) navigate({ to: "/auth" });
+          // ⚠️ Do NOT navigate here – let the route’s beforeLoad handle it.
+          console.warn("AppShell: No session – route will handle.");
+          if (!cancelled) setLoading(false);
           return;
         }
         setUserEmail(session.user.email || "");
@@ -156,7 +155,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background" suppressHydrationWarning>
-      {/* Mobile overlay */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -164,7 +162,6 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transition-transform duration-300",
@@ -230,9 +227,7 @@ export function AppShell({ children, requireOwner = false }: AppShellProps) {
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
-        {/* Mobile header */}
         <header className="lg:hidden flex h-16 items-center justify-between border-b px-4 bg-background/95 backdrop-blur sticky top-0 z-30">
           <div className="flex items-center gap-2">
             <Button
