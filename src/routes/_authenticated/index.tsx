@@ -6,24 +6,13 @@ export const Route = createFileRoute("/_authenticated/")({
   beforeLoad: async () => {
     console.log("🔐 _authenticated/index beforeLoad");
 
-    // 1. Retry getting the session (in case it's not yet persisted)
-    let session = null;
-    let retries = 0;
-    while (!session && retries < 5) {
-      const { data } = await supabase.auth.getSession();
-      session = data.session;
-      if (!session) {
-        await new Promise((r) => setTimeout(r, 100));
-        retries++;
-      }
-    }
+    const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      console.warn("⚠️ No session after retries, redirecting to /auth");
+      console.warn("⚠️ No session, redirecting to /auth");
       throw redirect({ to: "/auth", replace: true });
     }
 
-    // 2. Get the staff role
     const { data: staff, error } = await supabase
       .from("staff")
       .select("role")
@@ -35,7 +24,6 @@ export const Route = createFileRoute("/_authenticated/")({
       throw redirect({ to: "/pos", replace: true });
     }
 
-    // 3. Redirect based on role
     if (staff.role === "owner") {
       console.log("✅ Redirecting owner to /dashboard");
       throw redirect({ to: "/dashboard", replace: true });
