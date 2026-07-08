@@ -47,7 +47,7 @@ type Product = {
   current_stock: number;
   minimum_stock: number;
   image_url: string | null;
-  expiry_date: string | null;
+  expiry_date: string | null; // ✅ NEW
   is_active: boolean;
 };
 
@@ -89,7 +89,6 @@ function ProductsPage() {
     return true;
   });
 
-  // Stats
   const totalProducts = products.length;
   const lowStockCount = products.filter((p) => p.current_stock <= p.minimum_stock).length;
   const totalInventoryValue = products.reduce((sum, p) => sum + p.buying_price * p.current_stock, 0);
@@ -116,7 +115,6 @@ function ProductsPage() {
         }
       />
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Total Products"
@@ -145,7 +143,6 @@ function ProductsPage() {
         />
       </div>
 
-      {/* Search & Filter */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -173,7 +170,6 @@ function ProductsPage() {
         </Button>
       </div>
 
-      {/* Product Grid */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
@@ -193,7 +189,6 @@ function ProductsPage() {
                 className="group rounded-2xl border border-border bg-white dark:bg-[#121212] p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
               >
                 <div className="flex flex-col h-full">
-                  {/* Image */}
                   <div className="relative">
                     {p.image_url ? (
                       <img
@@ -213,7 +208,6 @@ function ProductsPage() {
                     )}
                   </div>
 
-                  {/* Details */}
                   <div className="mt-3 flex-1">
                     <h3 className="font-medium text-sm leading-snug line-clamp-2">{p.name}</h3>
                     {p.sku && (
@@ -246,7 +240,6 @@ function ProductsPage() {
                     )}
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-border/50">
                     <Button
                       variant="ghost"
@@ -275,7 +268,6 @@ function ProductsPage() {
         </div>
       )}
 
-      {/* Edit Dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         {editing && <ProductDialog product={editing} onDone={() => setEditing(null)} />}
       </Dialog>
@@ -283,8 +275,7 @@ function ProductsPage() {
   );
 }
 
-// --- Helpers (StatCard, ProductThumb) ---
-
+// --- Helpers ---
 const STAT_STYLES = {
   dark: {
     card: "bg-[#16294A] dark:bg-[#0a1628] text-white dark:text-slate-200 border-transparent",
@@ -365,7 +356,7 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
   const [stock, setStock] = useState(String(product?.current_stock ?? "0"));
   const [minStock, setMinStock] = useState(String(product?.minimum_stock ?? "5"));
   const [imageUrl, setImageUrl] = useState(product?.image_url ?? "");
-  const [expiryDate, setExpiryDate] = useState(product?.expiry_date || "");
+  const [expiryDate, setExpiryDate] = useState(product?.expiry_date || ""); // ✅ NEW
   const [uploading, setUploading] = useState(false);
 
   const save = useMutation({
@@ -383,7 +374,7 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
         current_stock: Number(stock) || 0,
         minimum_stock: Number(minStock) || 0,
         image_url: imageUrl || null,
-        expiry_date: expiryDate || null,
+        expiry_date: expiryDate || null, // ✅ NEW
       };
 
       if (product) {
@@ -397,7 +388,7 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["pos-products"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-expiring"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-expiring"] }); // ✅ NEW
       toast.success(product ? "Imesasishwa" : "Imeongezwa");
       onDone();
     },
@@ -465,6 +456,7 @@ function ProductDialog({ product, onDone }: { product?: Product; onDone: () => v
             />
           </div>
         </div>
+        {/* ✅ NEW: Expiry date input */}
         <div className="space-y-2">
           <Label>Tarehe ya Kuisha (Expiry Date)</Label>
           <Input
