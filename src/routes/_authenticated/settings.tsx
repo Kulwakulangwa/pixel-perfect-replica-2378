@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-const OWNER_EMAIL = "kulwakulangwa@gmail.com";
+const OWNER_EMAIL = "chasambajuma@gmail.com";
 const SHOP_ID = "11111111-1111-1111-1111-111111111111";
 
 type ShopSettings = {
@@ -192,7 +192,7 @@ function SettingsPage() {
           />
           <StatCard
             label="Owner"
-            value="Kulwa Kulangwa"
+            value="Wakuja shop"
             icon={Shield}
             variant="amber"
           />
